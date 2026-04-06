@@ -1,0 +1,34 @@
+{
+  "_comment": "Project registry — maps project paths to their type and tooling config. Populated by install.sh and pack installers. Used by hooks to auto-detect project type and apply correct linters/formatters/reviewers.",
+  "projects": {
+    "{{PROJECT_PATH}}": {
+      "type": "{{PROJECT_TYPE}}",
+      "name": "{{PROJECT_NAME}}",
+      "reviewers": {
+        "_comment": "Subagent matchers for code review (SubagentStop hook). Keys are matcher names, values are hook script paths.",
+        "code-reviewer": "~/.claude/hooks/post-commit-review.sh"
+      },
+      "linters": {
+        "_comment": "Linter commands keyed by language. Commit-gate hook runs these before allowing git commit.",
+        "python": "ruff check .",
+        "javascript": "npx oxlint --deny-warnings",
+        "typescript": "tsc --noEmit && npx oxlint --deny-warnings"
+      },
+      "formatters": {
+        "_comment": "Formatter commands keyed by language. Post-edit hook runs these after file changes.",
+        "python": "ruff format .",
+        "javascript": "npx biome format --write .",
+        "typescript": "npx biome format --write ."
+      },
+      "testRunner": {
+        "_comment": "How to run tests for this project. TDD runner uses this.",
+        "command": "{{TEST_COMMAND}}",
+        "pattern": "{{TEST_FILE_PATTERN}}"
+      },
+      "deploy": {
+        "_comment": "Deploy skill to invoke after successful review. Auto-detected from project markers if not set.",
+        "skill": "{{DEPLOY_SKILL}}"
+      }
+    }
+  }
+}

@@ -1,0 +1,223 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Deterministic Pipeline Workflow",
+  "description": "Fixed workflow graph for pipeline orchestration. Each node has explicit entry/exit criteria. Agents execute bounded subtasks -- they don't decide what comes next. Project-type detection (project-detect.sh) determines deploy strategy at runtime.",
+  "version": "1.0.0",
+  "pipeline": [
+    {
+      "id": "scope",
+      "name": "Scope Analysis",
+      "agent": "scope-analyzer",
+      "model": "haiku",
+      "max_turns": 10,
+      "timeout_seconds": 120,
+      "required": true,
+      "success_criteria": "NEXT_ACTION token present in output",
+      "failure_action": "escalate_to_orchestrator",
+      "outputs": ["affected_files", "risk_level", "next_action"],
+      "transitions": {
+        "PROCEED": "impl",
+        "NEEDS_IMPACT_ASSESSMENT": "impact",
+        "NEEDS_ARCH_REVIEW": "arch"
+      }
+    },
+    {
+      "id": "impact",
+      "name": "Impact Assessment",
+      "agent": "impact-assessor",
+      "model": "sonnet",
+      "max_turns": 10,
+      "timeout_seconds": 180,
+      "required": false,
+      "success_criteria": "VERDICT token present (HIGH_IMPACT|MEDIUM_IMPACT|LOW_IMPACT|SAFE)",
+      "failure_action": "skip_and_warn",
+      "outputs": ["impact_matrix", "verdict"],
+      "transitions": {
+        "HIGH_IMPACT": "arch",
+        "MEDIUM_IMPACT": "impl",
+        "LOW_IMPACT": "impl",
+        "SAFE": "impl"
+      }
+    },
+    {
+      "id": "arch",
+      "name": "Architecture Review",
+      "agent": "arch-reviewer",
+      "model": "opus",
+      "max_turns": 8,
+      "timeout_seconds": 300,
+      "required": false,
+      "success_criteria": "VERDICT token present (APPROVED|APPROVED_WITH_CHANGES|REDESIGN_NEEDED)",
+      "failure_action": "escalate_to_orchestrator",
+      "outputs": ["verdict", "recommendations"],
+      "transitions": {
+        "APPROVED": "impl",
+        "APPROVED_WITH_CHANGES": "impl",
+        "REDESIGN_NEEDED": "escalate"
+      }
+    },
+    {
+      "id": "impl",
+      "name": "Implementation Design",
+      "agent": "impl-designer",
+      "model": "sonnet",
+      "max_turns": 10,
+      "timeout_seconds": 180,
+      "required": true,
+      "success_criteria": "Step-by-step implementation plan with file paths",
+      "failure_action": "retry_once",
+      "outputs": ["implementation_steps", "file_ownership", "test_files"],
+      "transitions": {
+        "default": "tdd"
+      }
+    },
+    {
+      "id": "tdd",
+      "name": "TDD Implementation",
+      "description": "Red-green-refactor loop. Worker writes failing test, implements, verifies green.",
+      "agent": "worker",
+      "model": "sonnet",
+      "max_turns": 50,
+      "timeout_seconds": 1800,
+      "required": true,
+      "success_criteria": "All tests pass, implementation complete",
+      "failure_action": "retry_once_then_dlq",
+      "hooks": {
+        "on_edit": "post-edit-tdd-runner (60s debounce)",
+        "on_test_pass": "auto-commit via hook"
+      },
+      "transitions": {
+        "tests_pass": "commit",
+        "tests_fail_3x": "dlq"
+      }
+    },
+    {
+      "id": "commit",
+      "name": "Auto-Commit",
+      "description": "Conventional commit with Co-Authored-By. Branch guard enforces feature branch.",
+      "agent": "worker",
+      "model": null,
+      "max_turns": 3,
+      "timeout_seconds": 30,
+      "required": true,
+      "success_criteria": "git commit exits 0",
+      "failure_action": "retry_once",
+      "hooks": {
+        "pre": ["tdd-gate", "pre-commit-lint", "branch-guard"],
+        "post": ["post-commit-review"]
+      },
+      "transitions": {
+        "commit_success": "review",
+        "lint_failure": "tdd",
+        "tdd_gate_failure": "tdd"
+      }
+    },
+    {
+      "id": "review",
+      "name": "Parallel Code Review",
+      "description": "code-reviewer + security-reviewer + dependency-checker run in parallel. The actual reviewer agent is determined by project type at runtime (e.g., framework-specific reviewer vs generic code-reviewer).",
+      "_note": "Replace 'code-reviewer' with a project-specific reviewer agent if needed. project-detect.sh can map: Python project -> python-reviewer, JS/TS project -> ts-reviewer, etc.",
+      "agents": [
+        { "name": "code-reviewer", "model": "haiku", "max_turns": 15, "_note": "Generic reviewer. Override per project type." },
+        { "name": "security-reviewer", "model": "haiku", "max_turns": 8, "conditional": "security-sensitive files changed" },
+        { "name": "dependency-checker", "model": "haiku", "max_turns": 6, "conditional": "dependency files changed" }
+      ],
+      "timeout_seconds": 300,
+      "required": true,
+      "success_criteria": "All agents complete, no BLOCKING or FIX_CRITICAL verdict",
+      "failure_action": "route_to_fix",
+      "transitions": {
+        "all_pass": "deploy",
+        "critical_found": "tdd",
+        "high_impact": "escalate"
+      }
+    },
+    {
+      "id": "deploy",
+      "name": "Auto-Deploy",
+      "description": "Deploy strategy is determined by project-detect.sh at runtime based on project marker files.",
+      "_project_detection": {
+        "hooks.py": "Framework app deploy (e.g., /deploy skill: build, push, backup, migrate, test)",
+        "turbo.json OR turbo.jsonc + bun.lock": "Monorepo deploy (e.g., /deploy-monorepo skill)",
+        "package.json + electron-builder.yml": "Desktop app (e.g., /release + /deploy-desktop skill)",
+        "build.gradle.kts": "Android/JVM deploy (e.g., /deploy-android skill)",
+        "package.json (standalone)": "Node app release (e.g., /release skill: version bump + tag + push)",
+        "fallback": "commit + push only"
+      },
+      "agent": "deploy",
+      "model": "sonnet",
+      "max_turns": 35,
+      "timeout_seconds": 600,
+      "required": true,
+      "success_criteria": "All deploy verification steps pass",
+      "failure_action": "self_heal_3x_then_rollback",
+      "transitions": {
+        "deploy_success": "done",
+        "self_heal_exhausted": "rollback",
+        "migration_unsafe": "escalate"
+      }
+    },
+    {
+      "id": "done",
+      "name": "Pipeline Complete",
+      "description": "Write progress record, update task status, clean up workspace if applicable.",
+      "agent": null,
+      "required": true,
+      "actions": [
+        "Write progress JSON to pipeline output directory",
+        "Update task status to 'complete'",
+        "If worktree: merge back and clean up"
+      ]
+    },
+    {
+      "id": "dlq",
+      "name": "Dead Letter Queue",
+      "description": "Task failed after retries. Capture full context for later review.",
+      "agent": null,
+      "required": false,
+      "actions": [
+        "Write failure JSON to DLQ directory with timestamp",
+        "Update task status to 'failed'",
+        "Notify orchestrator"
+      ]
+    },
+    {
+      "id": "escalate",
+      "name": "Escalate to Human",
+      "description": "Issue requires human judgment. Stop pipeline and report.",
+      "agent": null,
+      "required": false,
+      "actions": [
+        "Write escalation summary to DLQ directory",
+        "Report to user with full context",
+        "Pipeline halts until human resumes"
+      ]
+    },
+    {
+      "id": "rollback",
+      "name": "Rollback",
+      "description": "Deploy failed after self-heal attempts. Restore previous state.",
+      "agent": null,
+      "required": false,
+      "actions": [
+        "Restore from latest backup (project-type dependent)",
+        "git revert HEAD",
+        "Write failure to DLQ",
+        "Notify user"
+      ]
+    }
+  ],
+  "failure_actions": {
+    "retry_once": "Re-run the same node once. If still fails, escalate.",
+    "retry_once_then_dlq": "Re-run once. If still fails, move to DLQ.",
+    "skip_and_warn": "Skip node, emit warning, continue pipeline.",
+    "escalate_to_orchestrator": "Stop pipeline, report to orchestrator for human decision.",
+    "route_to_fix": "Return to TDD node with review feedback as input.",
+    "self_heal_3x_then_rollback": "Attempt automated fix up to 3 times. On 4th failure, rollback."
+  },
+  "bounded_execution": {
+    "description": "Every node has max_turns and timeout_seconds. If either limit is hit, the node fails and failure_action triggers. This prevents runaway agents.",
+    "global_timeout_seconds": 3600,
+    "global_max_cost_usd": 5.00
+  }
+}

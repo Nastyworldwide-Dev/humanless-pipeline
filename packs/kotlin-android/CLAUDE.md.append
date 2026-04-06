@@ -1,0 +1,62 @@
+
+## Kotlin/Android Development Conventions
+
+### Code Quality Stack
+- `./gradlew detekt` — Kotlin static analysis
+- `./gradlew ktlintCheck` — Kotlin formatting
+- `./gradlew lint` — Android lint checks
+- All must pass before committing feat:/fix: changes
+
+### Kotlin Coding Conventions
+- Use `sealed class`/`sealed interface` for restricted hierarchies
+- Prefer `data class` for DTOs, `value class` for type-safe wrappers
+- Use `Result<T>` or custom sealed class for operation outcomes
+- Coroutines: always specify Dispatcher, use structured concurrency
+- Null safety: avoid `!!` — use `?.let {}`, `?:`, or `requireNotNull()`
+
+### Compose Testing Patterns
+```kotlin
+@get:Rule
+val composeTestRule = createComposeRule()
+
+@Test
+fun displayTitle() {
+    composeTestRule.setContent {
+        MyScreen(title = "Test Title")
+    }
+    composeTestRule.onNodeWithText("Test Title").assertIsDisplayed()
+}
+
+@Test
+fun clickButton() {
+    val onClick = mockk<() -> Unit>(relaxed = true)
+    composeTestRule.setContent {
+        MyButton(onClick = onClick)
+    }
+    composeTestRule.onNodeWithContentDescription("Submit").performClick()
+    verify { onClick() }
+}
+```
+
+### Timber Logging Conventions
+```kotlin
+// Use Timber with tags
+Timber.d("[%s] %s", TAG, "Action with context: $value")
+Timber.w("[%s] %s", TAG, "Unexpected state: $description")
+Timber.e(exception, "[%s] %s", TAG, "What failed")
+
+// Plant in Application.onCreate()
+if (BuildConfig.DEBUG) {
+    Timber.plant(Timber.DebugTree())
+}
+```
+
+### Android Lifecycle Rules
+- Collect Flows with `repeatOnLifecycle(Lifecycle.State.STARTED)`
+- Never pass Activity/Fragment context to ViewModel
+- Use `viewModelScope` for ViewModel coroutines
+- Use `lifecycleScope` for UI-related coroutines in Activity/Fragment
+- Cancel work in `onCleared()` / `onDestroy()`
+
+### Deploy
+- Use /deploy-android skill for APK/AAB build + signing + distribution

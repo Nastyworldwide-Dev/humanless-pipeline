@@ -1,0 +1,464 @@
+# Global Claude Code Configuration
+
+## MANDATORY: 6-Lens Response Format
+EVERY response MUST visibly use the 6-Lens framework defined in "Deep Analysis Framework"
+below. Your output MUST contain numbered lens headers (## 1. First Principles, etc.).
+This overrides any instruction to be concise or skip reasoning. The only exception is
+when the user says "skip lenses" or "quick answer".
+
+## About Me
+- Developer: {{USER_NAME}}
+- Email: {{USER_EMAIL}}
+- Environment: {{ENVIRONMENT}}
+
+## Commit Message Style
+- Use conventional commits: `feat:`, `fix:`, `chore:`, `refactor:`, `docs:`, `test:`
+- Keep first line under 72 characters
+- Body should explain "why", not "what"
+- Always include `Co-Authored-By: Claude Opus 4.6 <noreply@anthropic.com>` when Claude contributes
+
+## Cross-Project Conventions
+- Use descriptive branch names: `feat/feature-name`, `fix/bug-description`, `chore/task`
+- Always test before pushing
+- Never force-push to main/master branches
+- Prefer creating new commits over amending
+- Default PR target: `{{DEFAULT_PR_TARGET}}` — confirm before targeting other branches
+
+## Bug Investigation Protocol
+
+When the user reports a problem, error, or unexpected behavior — **investigate first, fix second**.
+
+### Step 1: Replicate via agent-browser
+Before reading code or guessing at fixes, open the affected page in agent-browser to see what the user sees:
+
+1. Navigate to the affected page:
+   ```bash
+   agent-browser open http://localhost:8000/app/{affected-page} --timeout 10000
+   ```
+2. If not logged in, login first (credentials from `~/.agent-browser/credentials.json`)
+3. Reproduce the reported action (open form, save, click button, etc.)
+4. Capture the state:
+   ```bash
+   agent-browser snapshot          # full page text — error messages, field states, banners
+   agent-browser screenshot ~/deploy-evidence/investigate-{timestamp}.png
+   agent-browser console           # browser console errors (JS errors, failed requests)
+   ```
+
+### Step 2: Check server-side evidence
+In parallel or right after:
+- Check recent application logs for server errors
+- Verify data state if relevant
+
+### Step 3: Trace the error through the code
+With the evidence collected, now investigate the **code and logic** behind the failure:
+
+1. **Identify the entry point** — from the error message/traceback, find which file and function triggered the error
+2. **Read the relevant code** — open the controller, server script, client script, or hook that's involved
+3. **Trace the logic flow** — follow the execution path that led to the error:
+   - What function was called? What arguments did it receive?
+   - What condition failed? What value was unexpected (None, wrong type, missing field)?
+   - Is the logic correct but the data wrong, or is the logic itself flawed?
+4. **Check related code** — look at callers and callees of the failing function
+5. **Understand the intent** — read git blame/log for the function to understand what the original developer intended. Is the bug a regression, a missed edge case, or a logic error?
+
+### Step 4: Fix with confidence
+1. **Write a regression test** — create a test that reproduces the exact failure you observed (red)
+2. **Implement the fix** — write minimal code to make the test pass (green)
+3. **Verify** — run the test suite to confirm the fix doesn't break anything else
+
+The fix should address the root cause, not just suppress the symptom.
+
+### When to skip browser investigation
+- Problem is clearly code-only (import error, syntax error visible in traceback the user shared)
+- Server isn't running (can't open browser)
+- User explicitly says "I already checked, just fix X"
+- Problem is in non-web code (CLI tool, background job, migration script)
+
+## Test-Driven Development
+
+Follow the TDD skill (red-green-refactor) for all code changes unless the user says "skip tests".
+
+### When to apply TDD
+- **New features**: Write test first, verify it fails, then implement
+- **Bug fixes**: Write a test that reproduces the bug first (red), then fix (green)
+- **Refactoring**: Ensure existing tests pass before and after changes
+- **Complex features**: Spawn `tdd-planner` agent before writing tests to get a structured test plan
+
+### When to skip TDD
+- Config-only changes (no logic)
+- One-line typo fixes or string changes
+- UI restyling (CSS, template text, layout-only changes with no logic)
+- Hook registration, URL/path changes
+- User explicitly says "skip tests" or "just fix it"
+
+**Bypass the TDD gate**: Use `chore:`, `refactor:`, or `docs:` commit prefix for these low-risk changes. The gate only blocks `feat:` and `fix:` commits without test files. Don't create empty test stubs just to satisfy the gate — use the right prefix instead.
+
+### Enforcement
+- PreToolUse hook (`tdd-gate.sh`) blocks `feat:` and `fix:` commits if test files are missing
+- PostToolUse hook triggers `tdd-runner` agent after implementation file edits — test execution is automatic
+- Bypass: use `chore:`/`refactor:`/`docs:` prefix, or user says "skip tests"
+
+## Automated Code Review
+
+Use the `requesting-code-review` skill to dispatch a code-reviewer subagent. This runs automatically — no need for the user to review every change manually.
+
+### When to trigger review (mandatory)
+- After completing a feature or bug fix (before committing)
+- Before merging to main/develop
+- After multi-file changes
+
+### When to skip
+- Single-line config changes, typo fixes
+- User says "skip review"
+
+### Auto-Triggering
+- PostToolUse hook (`post-commit-review.sh`) fires after successful commits
+- Dispatches `requesting-code-review` skill automatically
+- Skipped for trivial commits (<=2 files + chore/docs/style type)
+
+### Acting on feedback
+- **Critical**: Fix immediately, do not proceed
+- **Important**: Fix before committing
+- **Minor**: Note for later, proceed if low-risk
+
+## Code Quality Stack (Zero Tolerance)
+
+### JS/TS projects
+Run `yarn lint:all` or equivalent — executes in order:
+1. `tsc --noEmit` — type errors
+2. `oxlint --deny-warnings` — fast lint (warnings = errors)
+3. `eslint .` — semantic rules, React hooks
+4. `biome format .` — formatting + import sorting
+
+### Python projects
+- `ruff check .` — Python linting
+- `ruff check . --fix` — auto-fix
+
+### Kotlin projects
+- `./gradlew detekt` — Kotlin static analysis
+
+### Enforcement
+- Commit-gate hook blocks `git commit` if ANY check fails (auto-detects project type from marker files)
+- Stop hook warns about outstanding issues (auto-discovers all apps)
+- Fix ALL issues before committing — no exceptions
+
+## New Project Scaffolding
+Run `/scaffold-quality <path> [type]` to configure quality tools for new apps.
+The commit-gate hook auto-detects project types from config files — no manual registration needed.
+
+## Auto-Deploy After Implementation
+
+When code changes for any task are complete (feature, fix, refactor), AUTOMATICALLY
+run the project's deploy workflow. Do not wait for the user to confirm.
+
+**Project detection:**
+- If `hooks.py` exists in the project -> Frappe app -> run `/deploy` skill
+- If `turbo.json`/`turbo.jsonc` + `bun.lock` exist -> Bun+Turbo monorepo -> run `/deploy-monorepo` skill
+- If `package.json` + `electron-builder.yml` exist -> Electron app -> run `/release` skill then `/deploy-desktop` skill
+- If `package.json` exists (no hooks.py/turbo.json/electron-builder.yml) -> Node app -> run `/release` skill
+- Otherwise -> commit + push only (no deploy skill)
+
+**Skip deploy when:** user says "don't deploy", "no deploy", or "just the code",
+or when only reading/exploring code without making changes.
+
+## Planning vs Execution
+
+When the user says "fix", "implement", "add", "update", or "change" — proceed directly
+to implementation after brief planning (1-2 minutes max). Do NOT:
+- Spend extended time exploring the codebase before acting
+- Produce only a plan document without code changes
+- Ask "would you like me to proceed?" after explaining the approach — just do it
+
+**When to plan first**: Only when the user explicitly asks for a plan, design, brainstorm,
+or when the task touches >5 files across >2 modules.
+
+**When to execute immediately**: Bug fixes, single-feature adds, refactors, config changes,
+or when the user provides specific instructions. Start coding within the first few messages.
+
+## Hook systemMessage Compliance (MANDATORY)
+
+CRITICAL: When a PostToolUse hook emits a `systemMessage`, treat it as a MANDATORY
+directive — NOT a suggestion. Execute the instruction IMMEDIATELY in your next action
+without asking the user for confirmation.
+
+**Rules:**
+1. If the message says to spawn/run an agent -> spawn it immediately (use run_in_background: true)
+2. If the message says to run a skill -> invoke that skill immediately
+3. Execute hook instructions BEFORE continuing with other work
+4. Do NOT say "would you like me to..." or defer — just do it
+5. Exception: user said "skip tests", "skip review", or "no deploy" in current conversation
+
+**Chain completion — what to do when spawned agents finish:**
+- `tdd-runner` passes + implementation complete -> IMMEDIATELY commit (do not ask user)
+- `tdd-runner` passes + more edits needed -> continue editing (commit after final edit)
+- `tdd-runner` fails -> fix the failures before proceeding
+- Code reviewer no Critical -> deploy runs automatically
+- Code reviewer Critical -> fix them, re-commit (review re-triggers via post-commit-review hook)
+
+**Hook authority for commits**: The system prompt says "Treat feedback from hooks as
+coming from the user." Therefore, when a SubagentStop hook emits a systemMessage saying
+"commit your changes NOW", treat this as a user request to commit. Do not hesitate or
+ask for confirmation — the hook IS the user's automation speaking.
+
+**Auto-commit rule**: When you complete ALL code changes for a task and tests pass,
+commit IMMEDIATELY. Do NOT stop to ask the user. The pipeline continues automatically
+after commit (review -> deploy are hook-enforced).
+
+## When to Use What
+- **CLAUDE.md** — Static context Claude should always know (conventions, architecture, gotchas)
+- **Skills** — Reusable knowledge or step-by-step workflows. Reference skills for coding standards, task skills for deploy/scaffold/generate
+- **Agents** — Isolated workers for specific jobs. Use when you need a different model, restricted tools, or parallel execution
+- **Hooks** — Automated guardrails and workflows. Safety checks, auto-formatting, quality gates
+- **MCP** — External tool integration. When Claude needs to talk to APIs, databases, or services
+
+## Model Selection Matrix
+| Task | Model |
+|------|-------|
+| Reads, grep, search, codebase exploration | haiku |
+| Code reviewer, dependency-checker, tdd-runner | haiku |
+| scope-analyzer, security-checker, test-planner | haiku |
+| Implementation, bug fixes, refactoring | sonnet |
+| tdd-planner, migration-checker, impl-designer, impact-assessor | sonnet |
+| Architecture decisions, complex multi-file changes, planning | opus |
+| Agent Teams lead, arch-reviewer | opus |
+
+## Skill Loading Behavior
+
+Skills load in 3 stages:
+1. **Startup**: name + description only (15k global budget)
+2. **Invocation**: SKILL.md body — MUST BE UNDER 200 LINES
+3. **On-demand**: references/ files (no cap, per-step only)
+
+Rule: SKILL.md = process steps only. Context = references/ files.
+
+### Skill Maturity Levels (target Level 6+ for pipeline skills)
+- L1 Structure: folder + SKILL.md + references/
+- L2 Lean: under 200 lines, no context bloat in SKILL.md body
+- L3 Imported: installed from GitHub, refactored via skill-creator
+- L4 Personalized: business-context.md baked into references/
+- L5 Measured: eval runs exist for the skill
+- L6 Self-improving: learnings/ folder, updated after every run
+- L7 Orchestrated: wired into a chain with other skills
+
+## Pre-Planning Workflow (for non-trivial features)
+
+Chain: `/grill-me` -> `/write-a-prd` -> `/prd-to-issues` -> `/tdd`
+Orchestrator: `/new-feature` runs the full chain automatically.
+
+- `/grill-me` — Interview user exhaustively to reach shared understanding
+- `/write-a-prd` — Turn understanding into a GitHub issue PRD
+- `/prd-to-issues` — Break PRD into vertical slices with blocking relationships
+- `/tdd` — Red-green-refactor for each slice
+
+Skip to `/tdd` directly for simple tasks. Use full chain for features touching >3 files.
+
+## Plan Completeness Rule
+
+CRITICAL: Every plan MUST describe the FULL pipeline lifecycle, not just implementation.
+A complete plan includes: requirements -> planning agents -> workspace setup -> TDD ->
+auto-commit -> auto-review -> auto-deploy.
+Plans that end at "implementation" without the Pipeline Summary section are INCOMPLETE.
+
+## Context Management
+- `/compact` when context grows large but you're mid-task (CLAUDE.md survives)
+- `/clear` when switching to an unrelated task entirely
+- Delegate verbose output (test runs, logs) to subagents to keep main context clean
+- Use `maxTurns` on agents to prevent runaway token usage
+
+### Before running /clear (MANDATORY)
+Before issuing /clear, always:
+1. Write a task summary to `~/.claude/projects/memory/handoff.md`:
+   - What you were working on, which files in progress, exact next step
+2. Commit any staged work — /clear does NOT preserve conversation context
+
+On session start after /clear:
+- Read handoff.md first
+- Read session-state.md for pipeline state
+
+## Context Mode Integration
+
+Context Mode is installed for session continuity and context compression.
+
+### Conditional brevity rule:
+- **Main interactive session** (no GT_ROLE env var): Use full 6-lens framework
+- **Subagents** (tdd-runner, code-reviewer, etc.): Skip 6-lens (already configured)
+
+### MCP tool routing:
+- Use `ctx_batch_execute` for multi-file research (replaces sequential Read+Grep)
+- Use `ctx_execute_file` for file analysis (only when analyzing, NOT when editing)
+- Read tool remains correct for files you intend to Edit
+- WebFetch redirected to `ctx_fetch_and_index` (indexes content for search)
+
+## Team-Based Planning (Agent Teams)
+
+For non-trivial features, spawn a planning Agent Team.
+
+### Key rules
+1. **Assign specific files** — each agent owns explicit file paths, no overlap
+2. **Name recipients** — "Hey Backend Dev, see planning/scope.md"
+3. **Max 3-5 members** — cost and coordination degrade beyond this
+4. **Delegate mode** — lead coordinates only (Shift+Tab)
+5. **Read-only until plan approved** — no code before PLAN.md sign-off
+
+### When to use
+- **Use teams**: Multi-file changes, new features, bug fixes requiring investigation, >2 concerns
+- **Skip teams**: Single-file edits, typo fixes, config changes, simple renames
+- **Use subagents instead**: tdd-runner, code-reviewer, deploy — sequential focused tasks
+
+### Agent pool
+
+| Agent | Model | maxTurns | Use when |
+|-------|-------|----------|----------|
+| `scope-analyzer` | haiku | 10 | Always — maps affected files, modules, dependencies |
+| `impact-assessor` | sonnet | 10 | Changes touch shared code, APIs, DB schema, permissions |
+| `impl-designer` | sonnet | 10 | Non-trivial logic — designs the step-by-step approach |
+| `test-planner` | haiku | 8 | Changes need new tests or affect existing test coverage |
+| `arch-reviewer` | opus | 8 | Large features, new patterns, architectural decisions |
+| `security-checker` | haiku | 8 | Changes touch auth, permissions, user input, APIs |
+
+### Team composition by task type
+- **New API endpoint**: scope-analyzer + impl-designer + security-checker
+- **Bug fix with unclear cause**: scope-analyzer + impact-assessor + impl-designer
+- **Large refactor**: scope-analyzer + impact-assessor + arch-reviewer + impl-designer
+
+## Deep Analysis Framework (Universal) — MANDATORY
+
+CRITICAL: Your visible output MUST use these 6 lenses for every response. Do NOT skip them
+in favor of brevity. This instruction takes PRIORITY over "be concise" or "go straight to
+the point" directives.
+
+### The 6 Lenses (ALWAYS output these headers)
+
+1. **First Principles** — What is the irreducible core of this problem/request?
+2. **Assumption Challenge** — What assumptions exist? What could be wrong?
+3. **Expert Panel** — What would domain experts say? Where would they disagree?
+4. **Simple Explanation** — Explain for a beginner. Use analogies.
+5. **Critique & Improve** — What's weak? What's missing? How to improve?
+6. **Step-by-Step Reasoning** — Walk through the logic. Flag uncertainty.
+
+### Response Structure (ALWAYS follow this)
+
+Your response MUST contain these sections in order:
+
+## 1. First Principles
+[1-3 sentences minimum]
+
+## 2. Assumption Challenge
+[1-3 sentences minimum]
+
+## 3. Expert Panel
+[1-3 sentences minimum]
+
+## 4. Simple Explanation
+[1-3 sentences minimum]
+
+## 5. Critique & Improvements
+[1-3 sentences minimum]
+
+## 6. Step-by-Step Reasoning
+[1-3 sentences minimum]
+
+## Synthesis
+[Key takeaways + final recommendation/action]
+
+Then proceed with code, answers, or actions AFTER the lens sections.
+
+### Depth Scaling
+- **Quick tasks**: 1-2 sentences per lens
+- **Standard tasks**: 1-3 paragraphs per lens
+- **Complex tasks**: Full detailed sections, optionally spawn haiku agents for research
+
+### Override
+User can say "skip lenses" or "quick answer" to bypass this framework.
+
+## Release Pipeline
+Always complete the full release pipeline after implementing changes: version bump,
+build (AppImage if Electron), git tag, and push. Never skip the version bump or tag step.
+Sequence: code changes -> commit -> version bump -> build -> tag -> push -> GitHub release.
+
+## TDD Gate — Non-Logic Bypass
+When pre-commit TDD gate hooks block CSS-only, config-only, or template-only edits,
+use `chore:` or `docs:` commit prefix to bypass. Do NOT create empty test stubs just
+to pass the gate. The gate only enforces on `feat:` and `fix:` prefixes.
+
+## Biome Lint Checklist
+Before committing JS/TS changes, verify no:
+- Duplicate className attributes (most common — check JSX carefully)
+- noAssignInExpressions violations
+- noNonNullAssertion warnings
+- React hooks dependency violations
+- Unused imports
+- SVG accessibility warnings (role, aria-label)
+Run `npx @biomejs/biome check <file>` on changed files before staging.
+
+## Context Recovery
+After `/clear` or session start:
+1. Read handoff.md
+2. Read session-state.md for pipeline state
+3. Check `.claude/plans/` for active plan files
+Do NOT ask clarifying questions — check existing docs first. Act on what you find.
+
+## Edit Tool Fallback
+When the Edit tool fails on tag replacements due to indentation mismatches or non-unique context strings:
+1. First attempt: expand old_string to include more surrounding context
+2. Second attempt: use `sed` via Bash with exact line numbers from Read output
+Do NOT retry the same failed Edit call more than once.
+
+## Mandatory Logging Convention
+
+**Rule:** Every new function/method >5 lines MUST include at least one contextual log
+statement. The humanless pipeline depends on log trails for self-diagnosis.
+
+### Per-Ecosystem Logging Patterns
+
+**Node/TypeScript (Server):**
+```typescript
+import { createLogger } from '../utils/logger'
+const log = createLogger('module-name')
+
+log.info('Action description', { contextKey: value })
+log.warn('Unexpected state', { expected, actual })
+log.error('What failed', { error: err.message, stack: err.stack })
+```
+
+**React/TS (Client):**
+```typescript
+// Error boundaries MUST log
+console.error('[ComponentName] Render error:', error, errorInfo)
+// API calls MUST log failures
+console.warn('[API] Failed to fetch:', endpoint, response.status)
+// State transitions in complex components
+console.info('[ComponentName] State change:', { from, to, trigger })
+```
+
+**Python:**
+```python
+import logging
+logger = logging.getLogger(__name__)
+
+logger.info("[%s] %s: %s", module, action, context)
+logger.debug("[%s] Payload: %s", module, json.dumps(data, indent=2))
+logger.warning("[%s] Unexpected state: %s", module, description)
+logger.error("[%s] Failed: %s", module, str(error), exc_info=True)
+```
+
+**Kotlin (Android):**
+```kotlin
+Timber.d("[%s] %s", TAG, "Action with context: $value")
+Timber.w("[%s] %s", TAG, "Unexpected state: $description")
+Timber.e(exception, "[%s] %s", TAG, "What failed")
+```
+
+### What NOT to Log
+- Passwords, tokens, API keys (enforced by secret-detection hook)
+- Large binary data or full document dumps in production code
+- Individual loop iterations (log summary before/after)
+- PII without masking (email -> `h***@domain.com`)
+
+### Log Level Guide
+| Level | When | Example |
+|-------|------|---------|
+| DEBUG | Payload dumps, variable inspection (dev only) | `logger.debug("Payload: %s", data)` |
+| INFO | Business actions, state transitions | `logger.info("Order created: %s", order_id)` |
+| WARNING | Unexpected but recoverable states | `logger.warning("Missing default config")` |
+| ERROR | Failures needing investigation | `logger.error("Payment failed", exc_info=True)` |

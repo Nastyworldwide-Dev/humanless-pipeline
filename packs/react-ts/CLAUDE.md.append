@@ -1,0 +1,54 @@
+
+## React/TypeScript Development Conventions
+
+### Code Quality Stack
+Run `yarn lint:all` (or equivalent) — executes in order:
+1. `tsc --noEmit` — type errors
+2. `oxlint --deny-warnings` or `biome check` — fast lint
+3. `eslint .` — semantic rules, React hooks
+4. `biome format .` or `prettier --check .` — formatting
+
+### Biome Lint Checklist
+Before committing JS/TS changes, verify no:
+- Duplicate className attributes (most common)
+- noAssignInExpressions violations
+- noNonNullAssertion warnings
+- React hooks dependency violations
+- Unused imports
+- SVG accessibility warnings (role, aria-label)
+Run `npx @biomejs/biome check <file>` on changed files before staging.
+
+### Component Testing Patterns
+```typescript
+import { render, screen, fireEvent } from '@testing-library/react'
+import { describe, it, expect } from 'vitest'
+
+describe('MyComponent', () => {
+  it('renders correctly', () => {
+    render(<MyComponent title="Test" />)
+    expect(screen.getByText('Test')).toBeInTheDocument()
+  })
+
+  it('handles user interaction', async () => {
+    const onSubmit = vi.fn()
+    render(<MyComponent onSubmit={onSubmit} />)
+    fireEvent.click(screen.getByRole('button', { name: /submit/i }))
+    expect(onSubmit).toHaveBeenCalledOnce()
+  })
+})
+```
+
+### React/TS Logging Conventions
+```typescript
+// Error boundaries MUST log
+console.error('[ComponentName] Render error:', error, errorInfo)
+// API calls MUST log failures
+console.warn('[API] Failed to fetch:', endpoint, response.status)
+// State transitions in complex components
+console.info('[ComponentName] State change:', { from, to, trigger })
+```
+
+### Deploy
+- Bun+Turbo monorepo: use /deploy-monorepo skill
+- Plain npm/yarn project: use /release skill
+- Electron app: use /release then /deploy-desktop skill

@@ -1,0 +1,47 @@
+
+## Frappe/ERPNext Development Conventions
+
+### Test-Driven Development (Frappe)
+- Use `FrappeTestCase` as base class (provides DB rollback isolation)
+- Test files: `test_{doctype_name}.py` alongside the DocType
+- Run all: `bench --site {site} run-tests --app {app}`
+- Run single: `bench --site {site} run-tests --doctype {DocType}`
+- Run module: `bench --site {site} run-tests --module {dotted.module.path}`
+- Always verify the test fails first before implementing — if it passes immediately, the test is wrong
+
+### ERPNext Skills Workflow
+- When receiving vague ERPNext requirements, use `erpnext-code-interpreter` skill to generate concrete technical specs
+- The interpreter automatically maps to specific implementation skills (syntax-*, impl-*, errors-*, etc.)
+
+### Frappe Logging Patterns
+```python
+# Errors (feeds Error Log doctype)
+frappe.log_error(title="Short Title", message=f"Context: {relevant_vars}")
+
+# Non-error logging (structured)
+logger = frappe.logger("{app_name}", allow_site=True)
+logger.info(f"[{doctype}] {action}: {context}")
+logger.debug(f"[{doctype}] Payload: {json.dumps(data, indent=2)}")
+logger.warning(f"[{doctype}] Unexpected state: {description}")
+```
+
+### bench migrate Conventions
+- Always commit code before running bench migrate
+- Always backup before migrate: `bench --site {site} backup`
+- Consider spawning migration-checker agent for non-trivial schema changes
+- After migrate, check for fixture drift and export if needed
+
+### Default PR Target
+- Default PR target for Frappe projects: `development` branch
+- Never target `main`, `master`, or `version-15` without explicit instruction
+
+### frappe.throw vs raise
+- `frappe.throw()` for user-facing validation errors (shows red banner, rolls back)
+- `raise` for programming errors (bugs that should never reach users)
+- Always use `_()` for translatable error messages
+
+### Document Lifecycle Rules
+- NEVER call `frappe.db` inside `validate` — defer DB operations to `on_update`
+- Check `self.flags.ignore_validate` before expensive validation
+- Check `self.flags.in_import` to skip notifications during data import
+- Use `frappe.enqueue` for long-running tasks in `on_submit`
