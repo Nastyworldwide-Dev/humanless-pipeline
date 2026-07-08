@@ -1,0 +1,15 @@
+{
+  "_comment": "Deploy gate permissions. Managed by install.sh. Edit to add/remove admin users.",
+  "admin_users": [
+    "root"
+  ],
+  "root_is_always_admin": true,
+  "notification": {
+    "channel": "file",
+    "_comment_channel": "Options: 'file' (default), 'superset' (POST to Superset webhook), 'slack' (MCP), 'github' (MCP issue)",
+    "admin_contact": "",
+    "_comment_contact": "For slack: channel name. For github: 'owner/repo'. For superset/file: leave empty.",
+    "superset_url": "http://localhost:3001",
+    "_comment_superset_url": "Base URL of your Superset host-service. Used when channel is 'superset'."
+  }
+}

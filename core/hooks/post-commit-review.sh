@@ -74,6 +74,40 @@ if [ -n "$CWD" ]; then
   fi
 fi
 
+# --- Check for front-end design changes ---
+DESIGN_MSG=""
+if [ -n "$CWD" ]; then
+  # Detect project type via project-detect library
+  HOOKS_LIB="$HOME/.claude/hooks/lib/project-detect.sh"
+  APP_TYPE="generic"
+  if [ -f "$HOOKS_LIB" ]; then
+    PD_PROJECT_ROOT="$CWD"
+    source "$HOOKS_LIB"
+    APP_TYPE="$PD_PROJECT_TYPE"
+  fi
+
+  # Match front-end files based on app type
+  DESIGN_MATCH=""
+  case "$APP_TYPE" in
+    react-ts|monorepo|electron|node)
+      echo "$CHANGED_FILES" | grep -qE '\.(css|scss|less|tsx|jsx|vue|svelte|html)$|tailwind\.config|theme\.|tokens\.|\.styled\.|\.module\.css' && DESIGN_MATCH="yes"
+      ;;
+    android)
+      echo "$CHANGED_FILES" | grep -qE '(res/layout|res/drawable|res/values|res/color|Theme|Color|Style|ui/|\.compose\.)' && DESIGN_MATCH="yes"
+      ;;
+    frappe-bench)
+      echo "$CHANGED_FILES" | grep -qE '\.(css|scss|html|js|jsx|ts|tsx)$' && DESIGN_MATCH="yes"
+      ;;
+    *)
+      echo "$CHANGED_FILES" | grep -qE '\.(css|scss|less|tsx|jsx|vue|svelte|html)$|tailwind\.config|theme\.|tokens\.' && DESIGN_MATCH="yes"
+      ;;
+  esac
+
+  if [ -n "$DESIGN_MATCH" ]; then
+    DESIGN_MSG=" ALSO MANDATORY: Spawn design-reviewer agent (subagent_type=\"design-reviewer\", run_in_background: true) with prompt: \"Design review diff HEAD~1..HEAD. Project type: ${APP_TYPE}. Check design tokens, accessibility (WCAG 2.1 AA), responsive patterns, theming, CSS best practices. Apply ${APP_TYPE}-specific checks. End with VERDICT: DESIGN_APPROVED or FIX_WARNINGS or FIX_CRITICAL.\""
+  fi
+fi
+
 # --- Check for dependency changes ---
 DEP_CHECK_MSG=""
 if [ -n "$CWD" ]; then
@@ -82,5 +116,5 @@ if [ -n "$CWD" ]; then
   fi
 fi
 
-echo "{\"systemMessage\": \"${REVIEWER_MSG}${CROSS_APP_MSG}${SECURITY_MSG}${DEP_CHECK_MSG}\"}"
+echo "{\"systemMessage\": \"${REVIEWER_MSG}${CROSS_APP_MSG}${SECURITY_MSG}${DESIGN_MSG}${DEP_CHECK_MSG}\"}"
 exit 0

@@ -13,7 +13,6 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 CORE_DIR="$SCRIPT_DIR/core"
 PACKS_DIR="$SCRIPT_DIR/packs"
 CLAUDE_DIR="$HOME/.claude"
-AGENTS_DIR="$HOME/.agents"
 PIPELINE_DIR="$CLAUDE_DIR/pipeline"
 
 # ─── Colors ──────────────────────────────────────────────────────────────────
@@ -127,6 +126,7 @@ DIRS=(
     "$CLAUDE_DIR/pipeline/tasks/failed"
     "$CLAUDE_DIR/pipeline/tasks/blocked"
     "$CLAUDE_DIR/pipeline/tasks/archived"
+    "$CLAUDE_DIR/pipeline/deploy-pending"
     "$CLAUDE_DIR/pipeline/debounce"
     "$CLAUDE_DIR/pipeline/progress"
     "$CLAUDE_DIR/pipeline/scripts"
@@ -137,9 +137,8 @@ DIRS=(
     "$CLAUDE_DIR/config"
     "$CLAUDE_DIR/debug"
     "$CLAUDE_DIR/backups"
-    "$AGENTS_DIR"
-    "$AGENTS_DIR/skills"
-    "$AGENTS_DIR/skills/_shared"
+    "$CLAUDE_DIR/skills"
+    "$CLAUDE_DIR/skills/_shared"
 )
 
 for dir in "${DIRS[@]}"; do
@@ -206,7 +205,7 @@ if [[ -d "$CORE_DIR/skills" ]]; then
     # Symlink skill directories
     while IFS= read -r -d '' skill_dir; do
         skill_name="$(basename "$skill_dir")"
-        target="$AGENTS_DIR/skills/$skill_name"
+        target="$CLAUDE_DIR/skills/$skill_name"
 
         if [[ -d "$target" && ! -L "$target" ]]; then
             warn "Skipping skill $skill_name — user directory exists"
@@ -221,7 +220,7 @@ if [[ -d "$CORE_DIR/skills" ]]; then
     if [[ -d "$CORE_DIR/skills/_shared" ]]; then
         while IFS= read -r -d '' shared_file; do
             shared_name="$(basename "$shared_file")"
-            target="$AGENTS_DIR/skills/_shared/$shared_name"
+            target="$CLAUDE_DIR/skills/_shared/$shared_name"
             if [[ -f "$target" && ! -L "$target" ]]; then
                 warn "Skipping shared file $shared_name — user file exists"
                 continue
@@ -264,6 +263,25 @@ fi
 
 success "Installed $infra_count pipeline infrastructure files."
 
+# Initialize deploy permissions config
+DEPLOY_PERMS_FILE="$CLAUDE_DIR/config/deploy-permissions.json"
+if [[ ! -f "$DEPLOY_PERMS_FILE" ]]; then
+    if [[ -f "$CORE_DIR/config/deploy-permissions.json" ]]; then
+        cp "$CORE_DIR/config/deploy-permissions.json" "$DEPLOY_PERMS_FILE"
+        # Auto-populate current user as admin
+        CURRENT_USER=$(whoami)
+        if command -v jq &>/dev/null; then
+            jq --arg u "$CURRENT_USER" '.admin_users = [$u]' "$DEPLOY_PERMS_FILE" > "$DEPLOY_PERMS_FILE.tmp"
+            mv "$DEPLOY_PERMS_FILE.tmp" "$DEPLOY_PERMS_FILE"
+        fi
+        success "deploy-permissions.json initialized (admin: $CURRENT_USER)."
+    else
+        warn "deploy-permissions.json template not found — skipping."
+    fi
+else
+    info "deploy-permissions.json already exists — skipping."
+fi
+
 # ─── Step 7: Generate settings.json ─────────────────────────────────────────
 step "Step 7/8: Generating configuration files"
 
@@ -300,7 +318,7 @@ info "NODE_MODULES=$NODE_MODULES"
 SETTINGS_FILE="$CLAUDE_DIR/settings.json"
 SETTINGS_TMPL="$CORE_DIR/templates/settings.json.tmpl"
 
-if [[ -f "$SETTINGS_FILE" ]]; then
+if [[ -f "$SETTINGS_FILE" ]] && jq -e '.hooks' "$SETTINGS_FILE" &>/dev/null; then
     if [[ "$MODE" == "update" ]]; then
         info "settings.json exists — merging (preserving user customizations)..."
         # Backup first
@@ -342,7 +360,7 @@ fi
 CLAUDE_MD="$CLAUDE_DIR/CLAUDE.md"
 CLAUDE_MD_TMPL="$CORE_DIR/templates/CLAUDE.md.tmpl"
 
-if [[ ! -f "$CLAUDE_MD" ]]; then
+if [[ ! -f "$CLAUDE_MD" ]] || [[ ! -s "$CLAUDE_MD" ]]; then
     echo ""
     info "Setting up your CLAUDE.md profile..."
     echo ""

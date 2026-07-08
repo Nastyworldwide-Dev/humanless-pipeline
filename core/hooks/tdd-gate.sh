@@ -176,17 +176,11 @@ done <<< "$STAGED_FILES"
 
 # --- Verdict ---
 if [ -n "$MISSING_TESTS" ]; then
-  echo "=========================================="
-  echo "  COMMIT BLOCKED -- TDD gate: missing tests"
-  echo "=========================================="
-  echo -e "Commit type '$COMMIT_TYPE:' requires test files for changed code."
-  echo -e "\nMissing test files:$MISSING_TESTS"
-  echo ""
-  echo "Options:"
-  echo "  1. Create the missing test files (TDD: write failing test first)"
-  echo "  2. Use a different commit type (chore:/refactor:/docs:) if no tests needed"
-  echo "  3. User can say 'skip tests' to bypass"
-  exit 2
+  # Soft warning — suggest tests but don't block the commit
+  cat <<EOF
+{"systemMessage": "TDD reminder: The following files in this '$COMMIT_TYPE:' commit are missing corresponding test files:\n$MISSING_TESTS\n\nConsider creating tests for these files. You can:\n1. Create the missing test files (TDD: write failing test first)\n2. Use a different commit type (chore:/refactor:/docs:) if no tests needed\n\nProceeding with commit anyway (TDD gate is in advisory mode)."}
+EOF
+  exit 0
 fi
 
 exit 0

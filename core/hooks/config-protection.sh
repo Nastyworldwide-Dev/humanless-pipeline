@@ -65,6 +65,14 @@ case "$FILE_PATH" in
         PROTECTED=true
         REASON="Learnings capture hook -- continuous learning system"
         ;;
+    */\.claude/hooks/deploy-gate\.sh)
+        PROTECTED=true
+        REASON="Deploy gate hook -- access control enforcement. Cannot be self-modified."
+        ;;
+    */\.claude/config/deploy-permissions\.json)
+        PROTECTED=true
+        REASON="Deploy permissions config -- admin user list. Modification requires explicit user authorization."
+        ;;
 esac
 
 if [ "$PROTECTED" = true ]; then

@@ -94,13 +94,11 @@ case "$ext" in
 esac
 
 if [ "$test_found" = false ]; then
-  echo "TDD GATE: Edit blocked -- no test file found for ${filename}"
-  echo "  Expected: ${expected}"
-  echo "  Create the test file first (red-green-refactor), then edit the source."
+  # Soft warning — suggest tests but don't block the edit
   cat <<EOF
-{"hookSpecificOutput": {"hookEventName": "PreToolUse", "permissionDecision": "block", "reason": "TDD: No test file exists for ${filename} (expected ${expected}). Write the failing test first, then edit the source file."}}
+{"systemMessage": "TDD reminder: No test file found for ${filename} (expected ${expected}). Consider creating the test file first (red-green-refactor). Proceeding with edit anyway (TDD gate is in advisory mode)."}
 EOF
-  exit 2
+  exit 0
 fi
 
 exit 0

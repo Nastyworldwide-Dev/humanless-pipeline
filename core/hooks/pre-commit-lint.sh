@@ -1,7 +1,15 @@
 #!/bin/bash
-# PreToolUse hook: blocks git commit if linters fail
+# PreToolUse hook: AUTO-FIXES, then blocks git commit only if issues remain
 # Auto-detects project type from marker files — no hardcoded app names
-# Exit 0 = allow, Exit 2 = block
+#
+# Fix pass (aggressive — unsafe fixes enabled):
+#   Python : ruff check . --fix --unsafe-fixes   (lint fixes + pyupgrade/UP rewrites)
+#   JS/TS  : biome check --write --unsafe, eslint --fix, oxlint --fix, prettier --write
+#   Monorepo: bun run lint:fix
+# After fixing, `git add -u` stages the fixes so they ride in THIS commit.
+# Type errors and any lint that could not be auto-fixed still block.
+#
+# Exit 0 = allow, Exit 2 = block (only on issues that could not be auto-fixed)
 
 INPUT=$(cat)
 COMMAND=$(echo "$INPUT" | jq -r '.tool_input.command // empty')
@@ -23,6 +31,17 @@ find_git_root() {
   return 1
 }
 
+has_prettier_config() {
+  local d="$1"
+  for f in .prettierrc .prettierrc.json .prettierrc.yaml .prettierrc.yml \
+           .prettierrc.js .prettierrc.cjs .prettierrc.mjs \
+           prettier.config.js prettier.config.cjs prettier.config.mjs; do
+    [ -f "$d/$f" ] && return 0
+  done
+  [ -f "$d/package.json" ] && grep -q '"prettier"[[:space:]]*:' "$d/package.json" 2>/dev/null && return 0
+  return 1
+}
+
 run_python_lint() {
   local project_dir="$1"
   local app_name
@@ -38,10 +57,12 @@ run_python_lint() {
     [ -f "$subdir/package.json" ] && exclude_args="$exclude_args --exclude $(basename "$subdir")/**"
   done
 
+  # FIX pass — applies safe + unsafe fixes (covers pyupgrade/UP rewrites). Honors the
+  # project's pyproject.toml ignores. Exits non-zero only if violations remain afterwards.
   local OUT
-  OUT=$(cd "$project_dir" && ruff check . $exclude_args 2>&1)
+  OUT=$(cd "$project_dir" && ruff check . --fix --unsafe-fixes $exclude_args 2>&1)
   if [ $? -ne 0 ]; then
-    ERRORS="${ERRORS}\n--- ${app_name^^} RUFF FAILED ---\n${OUT}\n"
+    ERRORS="${ERRORS}\n--- ${app_name^^} RUFF (unfixable issues remain) ---\n${OUT}\n"
   fi
 }
 
@@ -53,42 +74,45 @@ run_frontend_lint() {
   parent_name=$(basename "$(dirname "$frontend_dir")")
   local label="${parent_name}/${frontend_name}"
 
-  # Must have tsconfig.json to be a TS frontend
+  # Must have tsconfig.json + package.json to be a TS frontend
   [ -f "$frontend_dir/tsconfig.json" ] || return 0
-  # Must have package.json
   [ -f "$frontend_dir/package.json" ] || return 0
 
-  # TypeScript check
-  if [ -f "$frontend_dir/tsconfig.json" ]; then
-    local OUT
-    OUT=$(cd "$frontend_dir" && npx tsc --noEmit 2>&1)
+  local OUT
+
+  # prettier (format only — does not block)
+  if has_prettier_config "$frontend_dir"; then
+    (cd "$frontend_dir" && npx prettier --write . >/dev/null 2>&1)
+  fi
+
+  # biome (fix incl. unsafe; blocks on remaining)
+  if [ -f "$frontend_dir/biome.json" ] || [ -f "$frontend_dir/biome.jsonc" ]; then
+    OUT=$(cd "$frontend_dir" && npx biome check --write --unsafe . 2>&1)
     if [ $? -ne 0 ]; then
-      ERRORS="${ERRORS}\n--- ${label^^} TYPECHECK FAILED ---\n$(echo "$OUT" | tail -15)\n"
+      ERRORS="${ERRORS}\n--- ${label^^} BIOME (unfixable issues remain) ---\n$(echo "$OUT" | tail -15)\n"
     fi
   fi
 
-  # oxlint (if .oxlintrc.json exists)
+  # oxlint (fix; blocks on remaining)
   if [ -f "$frontend_dir/.oxlintrc.json" ]; then
-    OUT=$(cd "$frontend_dir" && npx oxlint -c .oxlintrc.json . --deny-warnings 2>&1)
+    OUT=$(cd "$frontend_dir" && npx oxlint -c .oxlintrc.json . --fix --deny-warnings 2>&1)
     if [ $? -ne 0 ]; then
-      ERRORS="${ERRORS}\n--- ${label^^} OXLINT FAILED ---\n$(echo "$OUT" | tail -15)\n"
+      ERRORS="${ERRORS}\n--- ${label^^} OXLINT (unfixable issues remain) ---\n$(echo "$OUT" | tail -15)\n"
     fi
   fi
 
-  # eslint (if eslint config exists)
+  # eslint (fix; blocks on remaining)
   if [ -f "$frontend_dir/eslint.config.js" ] || [ -f "$frontend_dir/eslint.config.mjs" ] || [ -f "$frontend_dir/.eslintrc.js" ] || [ -f "$frontend_dir/.eslintrc.json" ]; then
-    OUT=$(cd "$frontend_dir" && npx eslint . 2>&1)
+    OUT=$(cd "$frontend_dir" && npx eslint . --fix 2>&1)
     if [ $? -ne 0 ]; then
-      ERRORS="${ERRORS}\n--- ${label^^} ESLINT FAILED ---\n$(echo "$OUT" | tail -15)\n"
+      ERRORS="${ERRORS}\n--- ${label^^} ESLINT (unfixable issues remain) ---\n$(echo "$OUT" | tail -15)\n"
     fi
   fi
 
-  # biome (if biome.json exists)
-  if [ -f "$frontend_dir/biome.json" ]; then
-    OUT=$(cd "$frontend_dir" && npx biome format . 2>&1)
-    if [ $? -ne 0 ]; then
-      ERRORS="${ERRORS}\n--- ${label^^} FORMAT FAILED ---\n$(echo "$OUT" | tail -15)\n"
-    fi
+  # TypeScript check (cannot auto-fix — blocks on type errors)
+  OUT=$(cd "$frontend_dir" && npx tsc --noEmit 2>&1)
+  if [ $? -ne 0 ]; then
+    ERRORS="${ERRORS}\n--- ${label^^} TYPECHECK FAILED ---\n$(echo "$OUT" | tail -15)\n"
   fi
 }
 
@@ -101,10 +125,11 @@ run_kotlin_lint() {
   [ -f "$project_dir/build.gradle.kts" ] || return 0
   [ -f "$project_dir/detekt.yml" ] || [ -d "$project_dir/config/detekt" ] || return 0
 
+  # detekt with auto-correct (formatting fixes); blocks on remaining
   local OUT
-  OUT=$(cd "$project_dir" && ./gradlew detekt 2>&1)
+  OUT=$(cd "$project_dir" && ./gradlew detekt --auto-correct 2>&1)
   if [ $? -ne 0 ]; then
-    ERRORS="${ERRORS}\n--- ${app_name^^} DETEKT FAILED ---\n$(echo "$OUT" | tail -15)\n"
+    ERRORS="${ERRORS}\n--- ${app_name^^} DETEKT (unfixable issues remain) ---\n$(echo "$OUT" | tail -15)\n"
   fi
 }
 
@@ -115,14 +140,17 @@ run_js_lint() {
 
   # Check for staged .js files
   local CHANGED_JS
-  CHANGED_JS=$(cd "$project_dir" && git diff --cached --name-only 2>/dev/null | grep '\.js$' || true)
+  # Generated/built assets are excluded: oxlint --fix rewrites minified bundles
+  # (e.g. no-useless-escape), breaking byte-parity with server-built fallback
+  # copies tracked in git (handapos v1.116.1 incident).
+  CHANGED_JS=$(cd "$project_dir" && git diff --cached --name-only --diff-filter=d 2>/dev/null | grep '\.js$' | grep -vE '(^|/)(public|www|dist|build)/|\.min\.js$' || true)
   if [ -n "$CHANGED_JS" ]; then
-    # Only lint if oxlint is available
+    # Only lint if npx is available
     if command -v npx &>/dev/null; then
       local OUT
-      OUT=$(cd "$project_dir" && echo "$CHANGED_JS" | xargs npx oxlint 2>&1)
+      OUT=$(cd "$project_dir" && echo "$CHANGED_JS" | xargs npx oxlint --fix 2>&1)
       if [ $? -ne 0 ]; then
-        ERRORS="${ERRORS}\n--- ${app_name^^} OXLINT FAILED ---\n${OUT}\n"
+        ERRORS="${ERRORS}\n--- ${app_name^^} OXLINT (unfixable issues remain) ---\n${OUT}\n"
       fi
     fi
   fi
@@ -137,13 +165,15 @@ GIT_ROOT=$(find_git_root "$CWD")
 if { [ -f "$GIT_ROOT/turbo.json" ] || [ -f "$GIT_ROOT/turbo.jsonc" ]; } && [ -f "$GIT_ROOT/bun.lock" ]; then
   # Bun + Turbo monorepo — use project-level commands
   if [ -f "$GIT_ROOT/biome.json" ] || [ -f "$GIT_ROOT/biome.jsonc" ]; then
+    # FIX pass, then verify what remains
+    (cd "$GIT_ROOT" && bun run lint:fix >/dev/null 2>&1)
     OUT=$(cd "$GIT_ROOT" && bun run lint 2>&1)
     if [ $? -ne 0 ]; then
-      ERRORS="${ERRORS}\n--- MONOREPO LINT FAILED ---\n$(echo "$OUT" | tail -20)\n"
+      ERRORS="${ERRORS}\n--- MONOREPO LINT (unfixable issues remain) ---\n$(echo "$OUT" | tail -20)\n"
     fi
   fi
 
-  # Typecheck via turbo
+  # Typecheck via turbo (cannot auto-fix)
   OUT=$(cd "$GIT_ROOT" && bun run typecheck 2>&1)
   if [ $? -ne 0 ]; then
     ERRORS="${ERRORS}\n--- MONOREPO TYPECHECK FAILED ---\n$(echo "$OUT" | tail -20)\n"
@@ -167,6 +197,13 @@ else
       run_frontend_lint "$subdir"
     fi
   done
+fi
+
+# --- Stage the auto-fixes so they ride in this commit (config: same-commit, git add -u) ---
+# Note: git add -u stages ALL modified tracked files in the repo, so any unrelated
+# unstaged edits to tracked files are swept into the commit too.
+if [ -n "$GIT_ROOT" ]; then
+  (cd "$GIT_ROOT" && git add -u 2>/dev/null)
 fi
 
 # --- Anti-pattern detection (advisory — warns but does not block) ---
@@ -201,11 +238,12 @@ fi
 if [ -n "$ERRORS" ]; then
   echo "=========================================="
   echo "  COMMIT BLOCKED -- quality gate failures"
+  echo "  (auto-fix ran; the below could NOT be fixed)"
   echo "=========================================="
   echo -e "$ERRORS"
-  echo "Fix all issues, then try committing again."
+  echo "Fix the remaining issues, then try committing again."
   exit 2
 fi
 
-echo "All quality gates passed."
+echo "All quality gates passed (auto-fixes applied + staged)."
 exit 0
