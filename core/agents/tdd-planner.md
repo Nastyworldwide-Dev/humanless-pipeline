@@ -51,3 +51,10 @@ VERDICT: PLAN_READY | NEEDS_SCOPE_ANALYSIS
 - Match the project's existing test framework and file placement conventions — never introduce a new framework.
 - Every P0 case must map to an observable behavior in the requirement, not implementation details.
 - If you cannot find the affected files, output `VERDICT: NEEDS_SCOPE_ANALYSIS` instead of guessing.
+
+## Learnings
+If this run surfaced a non-obvious, reusable fact (a gotcha, failure pattern, or project convention future runs should know), end your report with one line per fact:
+
+LEARNING: <one-sentence reusable fact>
+
+Omit entirely if nothing genuinely new was learned.

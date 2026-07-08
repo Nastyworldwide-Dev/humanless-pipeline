@@ -68,3 +68,10 @@ NEXT_ACTION: PROCEED | NEEDS_IMPACT_ASSESSMENT | NEEDS_ARCH_REVIEW
 - If a cross-module boundary is crossed -> note it and recommend spawning the impact-assessor agent
 - Stay factual -- list what exists, do not propose solutions or implementation approaches
 - Use Glob and Grep extensively; do not guess file locations
+
+## Learnings
+If this run surfaced a non-obvious, reusable fact (a gotcha, failure pattern, or project convention future runs should know), end your report with one line per fact:
+
+LEARNING: <one-sentence reusable fact>
+
+Omit entirely if nothing genuinely new was learned.

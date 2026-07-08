@@ -56,3 +56,10 @@ NEXT_ACTION: AWAIT_APPROVAL | NEEDS_CLARIFICATION: {question}
 - Simplicity first — if the plan exceeds what was asked, cut it. Prefer 5 surgical steps over 15 speculative ones.
 - Reference mockups by full absolute path (`/tmp/mockup-*.html`), never upload/artifact paths.
 - A plan without the PIPELINE SUMMARY section is incomplete — never omit it.
+
+## Learnings
+If this run surfaced a non-obvious, reusable fact (a gotcha, failure pattern, or project convention future runs should know), end your report with one line per fact:
+
+LEARNING: <one-sentence reusable fact>
+
+Omit entirely if nothing genuinely new was learned.

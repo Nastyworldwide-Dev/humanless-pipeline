@@ -67,3 +67,10 @@ VERDICT: APPROVED | APPROVED_WITH_CHANGES | REDESIGN_NEEDED
 - Do NOT review code style or formatting -- the code-reviewer handles that
 - Do NOT propose specific code -- describe patterns and principles only
 - Keep turns low -- read broadly, judge decisively
+
+## Learnings
+If this run surfaced a non-obvious, reusable fact (a gotcha, failure pattern, or project convention future runs should know), end your report with one line per fact:
+
+LEARNING: <one-sentence reusable fact>
+
+Omit entirely if nothing genuinely new was learned.

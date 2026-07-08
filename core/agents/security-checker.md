@@ -86,3 +86,10 @@ VERDICT: SECURE | FIX_WARNINGS | FIX_CRITICAL
 - Always include a Fix line for every finding
 - Only audit project code -- never flag framework internals
 - FIX_CRITICAL if any CRITICAL finding exists; FIX_WARNINGS if only WARNINGs; SECURE if only INFO or none
+
+## Learnings
+If this run surfaced a non-obvious, reusable fact (a gotcha, failure pattern, or project convention future runs should know), end your report with one line per fact:
+
+LEARNING: <one-sentence reusable fact>
+
+Omit entirely if nothing genuinely new was learned.

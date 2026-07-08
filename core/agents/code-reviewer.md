@@ -51,3 +51,10 @@ NEXT_ACTION: DEPLOY | FIX_CRITICAL
 - Verify a finding before reporting it — read the code path; do not report speculative issues as Critical.
 - Review only the diff and its blast radius; do not audit unrelated pre-existing code.
 - No findings is a valid outcome — say so plainly.
+
+## Learnings
+If this run surfaced a non-obvious, reusable fact (a gotcha, failure pattern, or project convention future runs should know), end your report with one line per fact:
+
+LEARNING: <one-sentence reusable fact>
+
+Omit entirely if nothing genuinely new was learned.

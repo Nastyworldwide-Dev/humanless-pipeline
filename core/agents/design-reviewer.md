@@ -218,3 +218,10 @@ VERDICT: DESIGN_APPROVED | FIX_WARNINGS | FIX_CRITICAL | NOT_APPLICABLE
 - Always run the 8 core checklist areas PLUS the 2 app-type-specific areas matching the project type
 - For generic/unknown project types, run only the 8 core checklist areas
 - Keep turns low -- scan broadly, judge decisively
+
+## Learnings
+If this run surfaced a non-obvious, reusable fact (a gotcha, failure pattern, or project convention future runs should know), end your report with one line per fact:
+
+LEARNING: <one-sentence reusable fact>
+
+Omit entirely if nothing genuinely new was learned.

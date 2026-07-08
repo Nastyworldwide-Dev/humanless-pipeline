@@ -53,3 +53,10 @@ NEXT_ACTION: DEPLOY | FIX_DEPS
 - Any conflict or incompatibility -> NEXT_ACTION: FIX_DEPS
 - Security advisories are warnings, not blockers (unless critical severity)
 - If audit tools are not installed, skip security check and note it
+
+## Learnings
+If this run surfaced a non-obvious, reusable fact (a gotcha, failure pattern, or project convention future runs should know), end your report with one line per fact:
+
+LEARNING: <one-sentence reusable fact>
+
+Omit entirely if nothing genuinely new was learned.

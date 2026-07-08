@@ -48,3 +48,10 @@ VERDICT: PASS | FAIL
 - If no test files exist for the edited files, say so explicitly and set `VERDICT: PASS` with a `NO TESTS FOUND` note.
 - If the test command itself errors (missing deps, config), report that verbatim as the failure — do not retry more than once.
 - Keep output terse; the caller only needs pass/fail and failure locations.
+
+## Learnings
+If this run surfaced a non-obvious, reusable fact (a gotcha, failure pattern, or project convention future runs should know), end your report with one line per fact:
+
+LEARNING: <one-sentence reusable fact>
+
+Omit entirely if nothing genuinely new was learned.

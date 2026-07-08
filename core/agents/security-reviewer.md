@@ -48,3 +48,10 @@ BLOCKING: yes | no
 - `BLOCKING: yes` only for CRITICAL findings with a verified user-controlled input path.
 - Compare against the codebase's own established pattern (e.g. memberId scoping in host-service routers) — missing scoping that siblings have is a finding.
 - Do not report theoretical issues in code the diff didn't touch.
+
+## Learnings
+If this run surfaced a non-obvious, reusable fact (a gotcha, failure pattern, or project convention future runs should know), end your report with one line per fact:
+
+LEARNING: <one-sentence reusable fact>
+
+Omit entirely if nothing genuinely new was learned.

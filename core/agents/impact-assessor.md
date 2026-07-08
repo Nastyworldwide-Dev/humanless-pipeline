@@ -63,3 +63,10 @@ VERDICT: HIGH_IMPACT | MEDIUM_IMPACT | LOW_IMPACT | SAFE
 - Schema change adding NOT NULL on a column that may have empty values in production -> HIGH_IMPACT
 - Do NOT propose solutions or implementation steps -- only assess impact
 - Use Grep and Read to verify claims; do not guess
+
+## Learnings
+If this run surfaced a non-obvious, reusable fact (a gotcha, failure pattern, or project convention future runs should know), end your report with one line per fact:
+
+LEARNING: <one-sentence reusable fact>
+
+Omit entirely if nothing genuinely new was learned.

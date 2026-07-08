@@ -72,3 +72,10 @@ NEXT_ACTION: READY_TO_IMPLEMENT | NEEDS_ARCH_REVIEW | NEEDS_MORE_INFO
 - Each step must be coverable by 1-2 focused tests
 - Flag every step that requires a DB migration
 - NEEDS_MORE_INFO if the requirement is ambiguous and assumptions would be risky
+
+## Learnings
+If this run surfaced a non-obvious, reusable fact (a gotcha, failure pattern, or project convention future runs should know), end your report with one line per fact:
+
+LEARNING: <one-sentence reusable fact>
+
+Omit entirely if nothing genuinely new was learned.

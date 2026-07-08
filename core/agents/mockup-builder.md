@@ -44,3 +44,10 @@ AWAITING SIGN-OFF — no production code until the user approves this mockup.
 - Always report the full absolute path (`/tmp/mockup-*.html`) — never a relative path or an uploads/ path.
 - Do not write any production code, and do not place the mockup inside the project repo.
 - If the request is backend-only with no UI surface, say so and stop instead of inventing a UI.
+
+## Learnings
+If this run surfaced a non-obvious, reusable fact (a gotcha, failure pattern, or project convention future runs should know), end your report with one line per fact:
+
+LEARNING: <one-sentence reusable fact>
+
+Omit entirely if nothing genuinely new was learned.

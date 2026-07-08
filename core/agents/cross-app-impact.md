@@ -46,3 +46,10 @@ VERDICT: COMPATIBLE | NEEDS_FOLLOWUP | BREAKING
 - BREAKING requires a named consumer with a verified call site that the diff leaves incompatible.
 - Always check mobile (`apps/mobile`) and host-service pairings — they deploy on different schedules (OTA vs systemd vs AppImage).
 - List consumers you checked and found clean; absence of evidence must be explicit, not implied.
+
+## Learnings
+If this run surfaced a non-obvious, reusable fact (a gotcha, failure pattern, or project convention future runs should know), end your report with one line per fact:
+
+LEARNING: <one-sentence reusable fact>
+
+Omit entirely if nothing genuinely new was learned.

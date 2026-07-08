@@ -49,3 +49,10 @@ NEXT_ACTION: DEPLOY | FIX_CRITICAL
 - `NEXT_ACTION: FIX_CRITICAL` only for Critical findings (permission bypass, data loss, guest-exposed endpoints, schema change without patch).
 - Verify doc_events/patch references actually resolve — grep for the dotted path target.
 - Do not flag Frappe-generated boilerplate (doctype JSON ordering, auto fields) as findings.
+
+## Learnings
+If this run surfaced a non-obvious, reusable fact (a gotcha, failure pattern, or project convention future runs should know), end your report with one line per fact:
+
+LEARNING: <one-sentence reusable fact>
+
+Omit entirely if nothing genuinely new was learned.

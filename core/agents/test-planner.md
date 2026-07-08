@@ -73,3 +73,10 @@ VERDICT: COVERED | GAPS_FOUND | NO_TESTS_EXIST
 - Prefer Integration layer for business logic (not Unit)
 - NO_TESTS_EXIST is a blocker -- do not proceed to implementation without a plan to add tests
 - COVERED means all gaps are P2 or lower and existing tests are sufficient
+
+## Learnings
+If this run surfaced a non-obvious, reusable fact (a gotcha, failure pattern, or project convention future runs should know), end your report with one line per fact:
+
+LEARNING: <one-sentence reusable fact>
+
+Omit entirely if nothing genuinely new was learned.

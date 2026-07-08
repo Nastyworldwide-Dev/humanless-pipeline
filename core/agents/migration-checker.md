@@ -52,3 +52,10 @@ VERDICT: SAFE_TO_MIGRATE | FIX_CRITICAL
 - Hand-edits to `packages/db/drizzle/` generated files are always CRITICAL — those must be regenerated, never edited.
 - Never execute a migration — you validate, the user runs it.
 - A migration you cannot statically verify (dynamic SQL, data backfill) gets a WARNING with what manual verification is needed.
+
+## Learnings
+If this run surfaced a non-obvious, reusable fact (a gotcha, failure pattern, or project convention future runs should know), end your report with one line per fact:
+
+LEARNING: <one-sentence reusable fact>
+
+Omit entirely if nothing genuinely new was learned.
