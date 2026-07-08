@@ -1,17 +1,19 @@
 # Humanless Pipeline
 
-A portable, hook-driven CI/CD pipeline for [Claude Code](https://docs.anthropic.com/en/docs/claude-code). Zero daemons, zero cron jobs -- everything is triggered by Claude Code's native hook system.
+A portable, hook-driven CI/CD pipeline for [Claude Code](https://docs.anthropic.com/en/docs/claude-code) — with a tool-agnostic git-hook layer so Codex, humans, and scripts hit the same quality gates. Zero daemons, zero cron jobs.
 
 ## What This Is
 
 The humanless pipeline turns Claude Code into a fully autonomous development assistant with:
 
-- **Pre-commit quality gates** -- TDD enforcement, linting, secret detection, config protection
-- **Post-commit automation** -- code review, auto-deploy, cost tracking
+- **Pre-commit quality gates** -- lint auto-fix + typecheck gate, TDD reminders, secret detection, config protection
+- **Post-commit automation** -- code review, design review, auto-deploy, cost tracking
+- **Deploy gate** -- deploy-phase commands restricted to admins in `deploy-permissions.json`
 - **Session management** -- context recovery, handoff persistence, dead letter queue
-- **Learning system** -- captures patterns from every session into a searchable SQLite database
+- **Learning system** -- captures LEARNING: lines from every subagent into a searchable SQLite database
 - **Task pipeline** -- backlog, active, done, failed, blocked, archived task states
 - **Cost tracking** -- per-session and per-tool token usage and cost estimation
+- **Multi-tool enforcement** -- global git hooks make the gates apply to Codex and human commits, not just Claude Code
 
 ## Quick Start
 
@@ -35,14 +37,15 @@ The installer will:
 3. Symlink hooks, agents, and skills (easy to update)
 4. Generate `settings.json` and `CLAUDE.md` from templates
 5. Initialize SQLite databases for cost tracking and learnings
-6. Run verification to confirm everything works
+6. Install global git hooks (`core.hooksPath`) and Codex config
+7. Run verification to confirm everything works
 
 ## System Requirements
 
 ### Required
 | Tool | Min Version | Purpose |
 |------|-------------|---------|
-| node | 18+ | Hook execution, context-mode plugin |
+| node | 18+ | Hook execution, npx-based linters |
 | npm | any | Package management |
 | python3 | any | Python linting, scripting |
 | git | any | Version control |
@@ -128,6 +131,57 @@ User Prompt
 
 Every hook is a standalone bash script. No daemon, no background process. Claude Code's hook system triggers them at the right lifecycle moment.
 
+## Multi-Tool Enforcement (Codex, humans, scripts)
+
+Claude Code hooks only fire inside Claude Code. To make the pipeline apply to
+**every** committer, the installer also sets up a global git-hook layer:
+
+```
+git config --global core.hooksPath ~/.claude/git-hooks   # (installer does this)
+
+~/.claude/git-hooks/          # symlink -> core/git-hooks/
+  pre-commit     Runs the same lint auto-fix + typecheck gate; blocks on
+                 unfixable issues. Skipped when CLAUDECODE=1 (Claude Code's
+                 PreToolUse hook already ran it — no double lint).
+  commit-msg     Warns when the message is not conventional-commits format.
+  post-commit    Prints REVIEW REQUIRED after non-trivial commits so agents
+                 that read command output (Codex) act on it.
+```
+
+All three chain to the repo-local `.git/hooks/<name>` afterwards, so husky /
+pre-commit-framework / project hooks keep working. Escape hatch for CI or
+emergency commits: `PIPELINE_SKIP_GIT_HOOKS=1 git commit ...`.
+
+**Codex integration**: when the `codex` CLI is detected, the installer links
+`~/.codex/AGENTS.md` to `core/codex/AGENTS.md` — the pipeline working
+agreement (conventional commits, TDD, review-before-push, admin-only deploys)
+that Codex loads globally — and creates a `~/.codex/config.toml` stub if none
+exists. Combined with the git-hook layer, Codex sessions get both the
+guidance and the enforcement.
+
+## Rolling Out to a Team
+
+Each developer (or each account on a shared VPS) runs:
+
+```bash
+git clone https://github.com/YOUR_ORG/humanless-pipeline.git ~/humanless-pipeline
+cd ~/humanless-pipeline
+./install.sh                 # plus --pack <name> for your stack
+```
+
+Everything installs per-user (`~/.claude`, `~/.codex`, global git config) —
+nothing system-wide, so team members on the same machine don't interfere.
+Notes:
+
+- Hooks/agents/skills are **symlinks into the clone** — `git pull &&
+  ./install.sh --update` picks up fixes for the whole toolchain at once.
+- `~/.claude/config/deploy-permissions.json` is initialized with the
+  installing user as admin. Edit `admin_users` to grant deploy rights.
+- Existing user files are never overwritten (the installer skips non-symlink
+  files and warns).
+- Pack installs copy bench/project-specific hooks; pack agent variants
+  intentionally replace the core symlink on that machine only.
+
 ## Directory Structure
 
 ```
@@ -136,7 +190,10 @@ Every hook is a standalone bash script. No daemon, no background process. Claude
   CLAUDE.md              # Global instructions for Claude
   hooks/                 # Hook scripts (symlinks to this repo)
     lib/                 # Shared hook utilities
+  git-hooks/             # Global git hooks (symlink to this repo)
   agents/                # Agent definitions (.md files)
+  skills/                # Skill definitions (symlinks to this repo)
+    _shared/             # Shared reference files across skills
   pipeline/
     circuit/             # Circuit breaker state
     learnings/           # Learning artifacts
@@ -161,9 +218,9 @@ Every hook is a standalone bash script. No daemon, no background process. Claude
   debug/                 # Debug artifacts
   backups/               # Auto-backups before destructive ops
 
-~/.agents/
-  skills/                # Skill definitions (symlinks to this repo)
-    _shared/             # Shared reference files across skills
+~/.codex/
+  AGENTS.md              # Codex pipeline guidance (symlink to this repo)
+  config.toml            # Codex global config (stub, user-owned after creation)
 ```
 
 ## Updating
@@ -223,8 +280,10 @@ packs/my-pack/
 Your `install.sh` should:
 1. Symlink hooks into `~/.claude/hooks/`
 2. Symlink agents into `~/.claude/agents/`
-3. Symlink skills into `~/.agents/skills/`
+3. Symlink skills into `~/.claude/skills/`
 4. Merge pack-specific hook entries into `settings.json` using `jq`
+5. Use `cp --remove-destination` when copying over names the core pipeline
+   symlinks, so you replace the link instead of writing through it
 
 ## License
 

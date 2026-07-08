@@ -1,0 +1,34 @@
+#!/bin/bash
+# Humanless Pipeline — global git pre-commit hook (installed via core.hooksPath)
+#
+# Tool-agnostic quality gate: commits from Codex, other agents, humans, and
+# scripts run the same lint gate Claude Code runs via its PreToolUse hook.
+# Claude Code sessions (CLAUDECODE=1) skip the gate HERE because
+# pre-commit-lint.sh already ran before the commit command was allowed.
+# Escape hatch for CI/automation: PIPELINE_SKIP_GIT_HOOKS=1.
+#
+# Always chains to the repo-local .git/hooks/pre-commit afterwards, so
+# per-repo hooks (husky, wiki refresh, pre-commit framework) keep working.
+
+if [ "${CLAUDECODE:-}" != "1" ] && [ "${PIPELINE_SKIP_GIT_HOOKS:-}" != "1" ]; then
+  LINT_HOOK="$HOME/.claude/hooks/pre-commit-lint.sh"
+  if [ -f "$LINT_HOOK" ] && command -v jq >/dev/null 2>&1; then
+    # Synthesize the Claude-hook JSON envelope the script expects
+    OUT=$(jq -n --arg cwd "$PWD" \
+      '{tool_name:"Bash", tool_input:{command:"git commit"}, cwd:$cwd}' \
+      | bash "$LINT_HOOK" 2>&1)
+    STATUS=$?
+    [ -n "$OUT" ] && echo "$OUT"
+    if [ "$STATUS" -ne 0 ]; then
+      echo "[pipeline] pre-commit: quality gate failed — commit aborted." >&2
+      exit 1
+    fi
+  fi
+fi
+
+# Chain to the repo-local hook (hooksPath overrides it, so run it explicitly)
+LOCAL_HOOK="$(git rev-parse --git-common-dir 2>/dev/null || echo .git)/hooks/pre-commit"
+if [ -x "$LOCAL_HOOK" ]; then
+  exec "$LOCAL_HOOK" "$@"
+fi
+exit 0

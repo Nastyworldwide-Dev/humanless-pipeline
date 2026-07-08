@@ -166,7 +166,12 @@ check_symlinks_in() {
 
 check_symlinks_in "$CLAUDE_DIR/hooks" "hooks"
 check_symlinks_in "$CLAUDE_DIR/agents" "agents"
-check_symlinks_in "$AGENTS_DIR/skills" "skills"
+# Skills live in ~/.claude/skills; older installs used ~/.agents/skills
+if [[ -d "$CLAUDE_DIR/skills" ]]; then
+    check_symlinks_in "$CLAUDE_DIR/skills" "skills"
+else
+    check_symlinks_in "$AGENTS_DIR/skills" "skills (legacy path)"
+fi
 
 # ─── 4. Agent Files ─────────────────────────────────────────────────────────
 echo ""
@@ -259,6 +264,57 @@ check_db() {
 
 check_db "$PIPELINE_DIR/cost-tracking.db" "cost-tracking.db" "tool_usage"
 check_db "$PIPELINE_DIR/learnings.db" "learnings.db" "learnings"
+
+# ─── 7. Git Hooks Layer (tool-agnostic gate) ────────────────────────────────
+echo ""
+echo -e "${BOLD}Git hooks layer:${RESET}"
+
+git_hooks_link="$CLAUDE_DIR/git-hooks"
+hookspath="$(git config --global core.hooksPath 2>/dev/null || echo "")"
+if [[ -z "$hookspath" ]]; then
+    fail "git core.hooksPath not set — Codex/human commits bypass the quality gate"
+elif [[ "$hookspath" == "$git_hooks_link" ]]; then
+    pass "git core.hooksPath -> $hookspath"
+else
+    skip "git core.hooksPath -> $hookspath (custom — ensure it chains the pipeline hooks)"
+fi
+
+for gh in pre-commit commit-msg post-commit; do
+    gh_path="$git_hooks_link/$gh"
+    real="$(readlink -f "$gh_path" 2>/dev/null || echo "$gh_path")"
+    if [[ -f "$real" ]]; then
+        if bash -n "$real" 2>/dev/null; then
+            if [[ -x "$real" ]]; then
+                pass "git-hooks/$gh"
+            else
+                fail "git-hooks/$gh — not executable"
+            fi
+        else
+            fail "git-hooks/$gh — syntax error"
+        fi
+    else
+        fail "git-hooks/$gh — missing"
+    fi
+done
+
+# ─── 8. Codex Integration ───────────────────────────────────────────────────
+echo ""
+echo -e "${BOLD}Codex integration:${RESET}"
+
+if command -v codex &>/dev/null || [[ -d "$HOME/.codex" ]]; then
+    if [[ -f "$HOME/.codex/AGENTS.md" ]]; then
+        pass "~/.codex/AGENTS.md present"
+    else
+        fail "~/.codex/AGENTS.md missing — Codex sessions have no pipeline guidance"
+    fi
+    if [[ -f "$HOME/.codex/config.toml" ]]; then
+        pass "~/.codex/config.toml present"
+    else
+        skip "~/.codex/config.toml missing (optional)"
+    fi
+else
+    skip "Codex CLI not installed — skipping Codex checks"
+fi
 
 # ─── Summary ─────────────────────────────────────────────────────────────────
 echo ""

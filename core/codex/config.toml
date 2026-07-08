@@ -1,0 +1,6 @@
+# Humanless Pipeline — Codex global config stub.
+# Created by humanless-pipeline install.sh only if ~/.codex/config.toml is
+# absent; never overwritten. Add global MCP servers or model settings here.
+#
+# Project-specific config belongs in each repo's .codex/config.toml
+# (run codex with CODEX_HOME=.codex to use it).

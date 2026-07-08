@@ -118,6 +118,19 @@ fi
 
 # ─── 4. Remove pipeline skills (symlinks only) ──────────────────────────────
 info "Removing pipeline skills..."
+if [[ -d "$CLAUDE_DIR/skills" ]]; then
+    while IFS= read -r -d '' skill; do
+        if [[ -L "$skill" ]]; then
+            target="$(readlink "$skill")"
+            if [[ "$target" == "$SCRIPT_DIR"* ]]; then
+                rm "$skill"
+                removed "claude-skills/$(basename "$skill")"
+                removed_count=$((removed_count + 1))
+            fi
+        fi
+    done < <(find "$CLAUDE_DIR/skills" -maxdepth 1 -print0 2>/dev/null)
+fi
+# Legacy skills location
 if [[ -d "$AGENTS_DIR/skills" ]]; then
     while IFS= read -r -d '' skill; do
         if [[ -L "$skill" ]]; then
@@ -146,6 +159,27 @@ if [[ -d "$AGENTS_DIR/skills" ]]; then
             fi
         done < <(find "$AGENTS_DIR/skills/_shared" -maxdepth 1 -print0 2>/dev/null)
     fi
+fi
+
+# ─── 4b. Remove git hooks layer + Codex link ────────────────────────────────
+info "Removing git hooks layer..."
+GIT_HOOKS_LINK="$CLAUDE_DIR/git-hooks"
+if [[ -L "$GIT_HOOKS_LINK" && "$(readlink "$GIT_HOOKS_LINK")" == "$SCRIPT_DIR"* ]]; then
+    hookspath="$(git config --global core.hooksPath 2>/dev/null || echo "")"
+    if [[ "$hookspath" == "$GIT_HOOKS_LINK" ]]; then
+        git config --global --unset core.hooksPath
+        removed "git core.hooksPath (unset)"
+        removed_count=$((removed_count + 1))
+    fi
+    rm "$GIT_HOOKS_LINK"
+    removed "git-hooks symlink"
+    removed_count=$((removed_count + 1))
+fi
+
+if [[ -L "$HOME/.codex/AGENTS.md" && "$(readlink "$HOME/.codex/AGENTS.md")" == "$SCRIPT_DIR"* ]]; then
+    rm "$HOME/.codex/AGENTS.md"
+    removed "~/.codex/AGENTS.md symlink"
+    removed_count=$((removed_count + 1))
 fi
 
 # ─── 5. Remove pipeline/ directory ──────────────────────────────────────────

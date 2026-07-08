@@ -1,0 +1,22 @@
+#!/bin/bash
+# Humanless Pipeline — global git commit-msg hook (installed via core.hooksPath)
+#
+# Advisory conventional-commits check for non-Claude committers (Codex,
+# humans, scripts). Warn-only, matching the Claude-side
+# pre-commit-validate.sh behavior. Chains to the repo-local hook.
+
+MSG_FILE="$1"
+
+if [ "${CLAUDECODE:-}" != "1" ] && [ "${PIPELINE_SKIP_GIT_HOOKS:-}" != "1" ] && [ -f "$MSG_FILE" ]; then
+  FIRST_LINE=$(head -1 "$MSG_FILE")
+  if ! echo "$FIRST_LINE" | grep -qE '^(feat|fix|chore|refactor|docs|test|style|perf|ci|build|revert)(\(.+\))?!?: .+'; then
+    echo "[pipeline] warning: commit message is not conventional-commits format." >&2
+    echo "[pipeline] expected: type(scope): description — types: feat fix chore refactor docs test style perf ci build revert" >&2
+  fi
+fi
+
+LOCAL_HOOK="$(git rev-parse --git-common-dir 2>/dev/null || echo .git)/hooks/commit-msg"
+if [ -x "$LOCAL_HOOK" ]; then
+  exec "$LOCAL_HOOK" "$@"
+fi
+exit 0

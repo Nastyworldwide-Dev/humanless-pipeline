@@ -1,0 +1,25 @@
+#!/bin/bash
+# Humanless Pipeline — global git post-commit hook (installed via core.hooksPath)
+#
+# For non-Claude committers (Codex, humans): prints the mandatory review
+# reminder after non-trivial commits, mirroring the Claude-side
+# post-commit-review.sh dispatch (which only fires inside Claude Code).
+# Agents reading command output (Codex does) see and act on this.
+# Chains to the repo-local hook (e.g. Superset's wiki refresh).
+
+if [ "${CLAUDECODE:-}" != "1" ] && [ "${PIPELINE_SKIP_GIT_HOOKS:-}" != "1" ]; then
+  FILE_COUNT=$(git diff-tree --no-commit-id --name-only -r HEAD 2>/dev/null | wc -l)
+  SUBJECT=$(git log -1 --pretty=%s 2>/dev/null)
+  # Skip trivial commits: <=2 files AND chore/docs/style type
+  if [ "$FILE_COUNT" -gt 2 ] || ! echo "$SUBJECT" | grep -qE '^(chore|docs|style)(\(.+\))?!?:'; then
+    echo "[pipeline] REVIEW REQUIRED: review the diff HEAD~1..HEAD before pushing."
+    echo "[pipeline] Codex: run 'codex review' (or 'codex exec review') and fix Critical findings first."
+    echo "[pipeline] Findings: Critical = fix now; Important = fix before push; Minor = note for later."
+  fi
+fi
+
+LOCAL_HOOK="$(git rev-parse --git-common-dir 2>/dev/null || echo .git)/hooks/post-commit"
+if [ -x "$LOCAL_HOOK" ]; then
+  exec "$LOCAL_HOOK" "$@"
+fi
+exit 0

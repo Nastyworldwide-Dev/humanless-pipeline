@@ -91,7 +91,7 @@ fi
 echo ""
 
 # ─── Step 1: Check Dependencies ─────────────────────────────────────────────
-step "Step 1/8: Checking dependencies"
+step "Step 1/9: Checking dependencies"
 source "$CORE_DIR/deps.sh"
 if ! check_all_required; then
     warn "Some required dependencies are missing."
@@ -108,7 +108,7 @@ else
 fi
 
 # ─── Step 2: Create Directory Structure ──────────────────────────────────────
-step "Step 2/8: Creating directory structure"
+step "Step 2/9: Creating directory structure"
 
 DIRS=(
     "$CLAUDE_DIR"
@@ -147,7 +147,7 @@ done
 success "Directory structure created (${#DIRS[@]} directories)."
 
 # ─── Step 3: Symlink Core Hooks ─────────────────────────────────────────────
-step "Step 3/8: Installing core hooks"
+step "Step 3/9: Installing core hooks"
 
 hook_count=0
 if [[ -d "$CORE_DIR/hooks" ]]; then
@@ -162,7 +162,7 @@ if [[ -d "$CORE_DIR/hooks" ]]; then
             continue
         fi
 
-        ln -sf "$hook_file" "$target"
+        ln -sfn "$hook_file" "$target"
         hook_count=$((hook_count + 1))
     done < <(find "$CORE_DIR/hooks" -maxdepth 1 -name '*.sh' -print0 2>/dev/null)
 
@@ -170,7 +170,7 @@ if [[ -d "$CORE_DIR/hooks" ]]; then
     if [[ -d "$CORE_DIR/hooks/lib" ]]; then
         while IFS= read -r -d '' lib_file; do
             lib_name="$(basename "$lib_file")"
-            ln -sf "$lib_file" "$CLAUDE_DIR/hooks/lib/$lib_name"
+            ln -sfn "$lib_file" "$CLAUDE_DIR/hooks/lib/$lib_name"
             hook_count=$((hook_count + 1))
         done < <(find "$CORE_DIR/hooks/lib" -maxdepth 1 -type f -print0 2>/dev/null)
     fi
@@ -178,7 +178,7 @@ fi
 success "Installed $hook_count hook files."
 
 # ─── Step 4: Symlink Core Agents ────────────────────────────────────────────
-step "Step 4/8: Installing core agents"
+step "Step 4/9: Installing core agents"
 
 agent_count=0
 if [[ -d "$CORE_DIR/agents" ]]; then
@@ -191,14 +191,14 @@ if [[ -d "$CORE_DIR/agents" ]]; then
             continue
         fi
 
-        ln -sf "$agent_file" "$target"
+        ln -sfn "$agent_file" "$target"
         agent_count=$((agent_count + 1))
     done < <(find "$CORE_DIR/agents" -maxdepth 1 -type f -print0 2>/dev/null)
 fi
 success "Installed $agent_count agent files."
 
 # ─── Step 5: Symlink Core Skills ────────────────────────────────────────────
-step "Step 5/8: Installing core skills"
+step "Step 5/9: Installing core skills"
 
 skill_count=0
 if [[ -d "$CORE_DIR/skills" ]]; then
@@ -212,7 +212,7 @@ if [[ -d "$CORE_DIR/skills" ]]; then
             continue
         fi
 
-        ln -sf "$skill_dir" "$target"
+        ln -sfn "$skill_dir" "$target"
         skill_count=$((skill_count + 1))
     done < <(find "$CORE_DIR/skills" -mindepth 1 -maxdepth 1 -type d -print0 2>/dev/null)
 
@@ -225,7 +225,7 @@ if [[ -d "$CORE_DIR/skills" ]]; then
                 warn "Skipping shared file $shared_name — user file exists"
                 continue
             fi
-            ln -sf "$shared_file" "$target"
+            ln -sfn "$shared_file" "$target"
             skill_count=$((skill_count + 1))
         done < <(find "$CORE_DIR/skills/_shared" -maxdepth 1 -type f -print0 2>/dev/null)
     fi
@@ -233,7 +233,7 @@ fi
 success "Installed $skill_count skill items."
 
 # ─── Step 6: Copy Pipeline Infrastructure ───────────────────────────────────
-step "Step 6/8: Installing pipeline infrastructure"
+step "Step 6/9: Installing pipeline infrastructure"
 
 infra_count=0
 
@@ -247,7 +247,7 @@ fi
 if [[ -d "$CORE_DIR/pipeline/scripts" ]]; then
     while IFS= read -r -d '' script_file; do
         script_name="$(basename "$script_file")"
-        ln -sf "$script_file" "$PIPELINE_DIR/scripts/$script_name"
+        ln -sfn "$script_file" "$PIPELINE_DIR/scripts/$script_name"
         infra_count=$((infra_count + 1))
     done < <(find "$CORE_DIR/pipeline/scripts" -maxdepth 1 -type f -print0 2>/dev/null)
 fi
@@ -256,7 +256,7 @@ fi
 if [[ -d "$CORE_DIR/pipeline/formulas" ]]; then
     while IFS= read -r -d '' formula_file; do
         formula_name="$(basename "$formula_file")"
-        ln -sf "$formula_file" "$PIPELINE_DIR/formulas/$formula_name"
+        ln -sfn "$formula_file" "$PIPELINE_DIR/formulas/$formula_name"
         infra_count=$((infra_count + 1))
     done < <(find "$CORE_DIR/pipeline/formulas" -maxdepth 1 -type f -print0 2>/dev/null)
 fi
@@ -283,37 +283,9 @@ else
 fi
 
 # ─── Step 7: Generate settings.json ─────────────────────────────────────────
-step "Step 7/8: Generating configuration files"
-
-# Detect NODE_MODULES path
-NODE_MODULES=""
-if command -v node &>/dev/null; then
-    NODE_PREFIX="$(npm config get prefix 2>/dev/null || echo "")"
-    if [[ -n "$NODE_PREFIX" && -d "$NODE_PREFIX/lib/node_modules" ]]; then
-        NODE_MODULES="$NODE_PREFIX/lib/node_modules"
-    fi
-fi
-
-if [[ -z "$NODE_MODULES" ]]; then
-    # Fallback: check common locations
-    for candidate in \
-        "$HOME/.nvm/versions/node/"*/lib/node_modules \
-        /usr/local/lib/node_modules \
-        /usr/lib/node_modules; do
-        if [[ -d "$candidate" ]]; then
-            NODE_MODULES="$candidate"
-            break
-        fi
-    done
-fi
-
-if [[ -z "$NODE_MODULES" ]]; then
-    warn "Could not detect node_modules path. Context-mode hooks will be disabled."
-    NODE_MODULES="/usr/local/lib/node_modules"
-fi
+step "Step 7/9: Generating configuration files"
 
 info "HOME=$HOME"
-info "NODE_MODULES=$NODE_MODULES"
 
 SETTINGS_FILE="$CLAUDE_DIR/settings.json"
 SETTINGS_TMPL="$CORE_DIR/templates/settings.json.tmpl"
@@ -326,10 +298,7 @@ if [[ -f "$SETTINGS_FILE" ]] && jq -e '.hooks' "$SETTINGS_FILE" &>/dev/null; the
 
         # For merge: we read the template, resolve placeholders, then use jq to merge
         # Strategy: keep existing settings, add any missing hook entries from template
-        RESOLVED_TMPL=$(sed \
-            -e "s|{{HOME}}|$HOME|g" \
-            -e "s|{{NODE_MODULES}}|$NODE_MODULES|g" \
-            "$SETTINGS_TMPL")
+        RESOLVED_TMPL=$(sed -e "s|{{HOME}}|$HOME|g" "$SETTINGS_TMPL")
 
         # Remove _comment fields for valid JSON, then merge
         CLEAN_TMPL=$(echo "$RESOLVED_TMPL" | jq 'walk(if type == "object" then with_entries(select(.key | startswith("_comment") | not)) else . end)')
@@ -347,10 +316,7 @@ if [[ -f "$SETTINGS_FILE" ]] && jq -e '.hooks' "$SETTINGS_FILE" &>/dev/null; the
     fi
 else
     # Fresh install: resolve template and write
-    sed \
-        -e "s|{{HOME}}|$HOME|g" \
-        -e "s|{{NODE_MODULES}}|$NODE_MODULES|g" \
-        "$SETTINGS_TMPL" | \
+    sed -e "s|{{HOME}}|$HOME|g" "$SETTINGS_TMPL" | \
     jq 'walk(if type == "object" then with_entries(select(.key | startswith("_comment") | not)) else . end)' \
         > "$SETTINGS_FILE"
     success "settings.json generated."
@@ -405,7 +371,7 @@ else
 fi
 
 # ─── Step 8: Initialize SQLite Databases ─────────────────────────────────────
-step "Step 8/8: Initializing databases"
+step "Step 8/9: Initializing databases"
 
 # Cost tracking database
 COST_DB="$PIPELINE_DIR/cost-tracking.db"
@@ -479,6 +445,44 @@ SQL
     success "learnings.db initialized."
 else
     info "learnings.db already exists — skipping."
+fi
+
+# ─── Step 9: Tool-agnostic git hooks + Codex ─────────────────────────────────
+step "Step 9/9: Installing git hooks (all tools) and Codex config"
+
+# Global git hooks: every committer (Claude Code, Codex, humans, scripts)
+# goes through the same quality gate. Claude Code sessions skip the lint pass
+# inside the hook (its own PreToolUse hook already ran it).
+GIT_HOOKS_LINK="$CLAUDE_DIR/git-hooks"
+ln -sfn "$CORE_DIR/git-hooks" "$GIT_HOOKS_LINK"
+CURRENT_HOOKSPATH="$(git config --global core.hooksPath 2>/dev/null || echo "")"
+if [[ -z "$CURRENT_HOOKSPATH" ]]; then
+    git config --global core.hooksPath "$GIT_HOOKS_LINK"
+    success "git core.hooksPath -> $GIT_HOOKS_LINK (repo-local hooks still chain)."
+elif [[ "$CURRENT_HOOKSPATH" == "$GIT_HOOKS_LINK" ]]; then
+    info "git core.hooksPath already points at the pipeline — skipping."
+else
+    warn "git core.hooksPath already set to '$CURRENT_HOOKSPATH' — not overriding."
+    warn "Chain $GIT_HOOKS_LINK/* from your existing hooks to enable the pipeline gate."
+fi
+
+# Codex: global AGENTS.md guidance + config stub (only when codex is present)
+if command -v codex &>/dev/null || [[ -d "$HOME/.codex" ]]; then
+    mkdir -p "$HOME/.codex"
+    if [[ -f "$HOME/.codex/AGENTS.md" && ! -L "$HOME/.codex/AGENTS.md" ]]; then
+        warn "Skipping ~/.codex/AGENTS.md — user file exists (merge core/codex/AGENTS.md manually)."
+    else
+        ln -sfn "$CORE_DIR/codex/AGENTS.md" "$HOME/.codex/AGENTS.md"
+        success "Codex global AGENTS.md linked."
+    fi
+    if [[ ! -f "$HOME/.codex/config.toml" ]]; then
+        cp "$CORE_DIR/codex/config.toml" "$HOME/.codex/config.toml"
+        success "Codex config.toml stub created."
+    else
+        info "Codex config.toml already exists — skipping."
+    fi
+else
+    info "Codex CLI not detected — skipping Codex setup."
 fi
 
 # ─── Install Packs ──────────────────────────────────────────────────────────
