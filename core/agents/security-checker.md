@@ -1,7 +1,7 @@
 ---
 name: security-checker
 description: Audits auth, permissions, user input, and APIs for security issues. Outputs CRITICAL/WARNING/INFO findings with SEC codes and a VERDICT token.
-model: haiku
+model: sonnet
 tools:
   - Bash
   - Read
