@@ -1,7 +1,7 @@
 ---
 name: frappe-reviewer
 description: Code reviewer for Frappe/ERPNext apps. Auto-triggered after every feat/fix commit. Reviews diffs for security, data integrity, and Frappe best practices. Outputs CRITICAL/WARNING/SUGGESTION with NEXT_ACTION.
-model: haiku
+model: sonnet
 tools:
   - Bash
   - Read

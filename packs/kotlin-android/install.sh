@@ -113,7 +113,7 @@ for hook_file in "$PACK_DIR"/hooks/*.sh; do
   if [ "$DRY_RUN" = true ]; then
     info "[DRY RUN] Would copy $hook_name"
   else
-    cp "$hook_file" "$PROJECT_PATH/.claude/hooks/$hook_name"
+    cp --remove-destination "$hook_file" "$PROJECT_PATH/.claude/hooks/$hook_name"
     chmod +x "$PROJECT_PATH/.claude/hooks/$hook_name"
     ok "Installed hook: $hook_name"
   fi
@@ -129,7 +129,7 @@ for agent_file in "$PACK_DIR"/agents/*.md; do
   if [ "$DRY_RUN" = true ]; then
     info "[DRY RUN] Would copy $agent_name"
   else
-    cp "$agent_file" "$HOME/.claude/agents/$agent_name"
+    cp --remove-destination "$agent_file" "$HOME/.claude/agents/$agent_name"
     ok "Installed agent: $agent_name"
   fi
 done
