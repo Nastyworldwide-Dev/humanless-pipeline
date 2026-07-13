@@ -265,6 +265,24 @@ check_db() {
 check_db "$PIPELINE_DIR/cost-tracking.db" "cost-tracking.db" "tool_usage"
 check_db "$PIPELINE_DIR/learnings.db" "learnings.db" "learnings"
 
+# ─── 6b. Functional tests (hooks exercised end-to-end, isolated HOME) ───────
+echo ""
+echo -e "${BOLD}Functional tests:${RESET}"
+
+REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+if [[ -d "$REPO_DIR/tests" ]]; then
+    while IFS= read -r -d '' t; do
+        t_name="$(basename "$t")"
+        if out=$(bash "$t" 2>&1); then
+            pass "$t_name — $out"
+        else
+            fail "$t_name — $out"
+        fi
+    done < <(find "$REPO_DIR/tests" -maxdepth 1 -name "test-*.sh" -print0 | sort -z)
+else
+    skip "no tests/ directory in repo"
+fi
+
 # ─── 7. Git Hooks Layer (tool-agnostic gate) ────────────────────────────────
 echo ""
 echo -e "${BOLD}Git hooks layer:${RESET}"

@@ -18,10 +18,16 @@ SESSION_ID=$(jq -r '.session_id // empty' "$SESSION_FILE" 2>/dev/null)
 NOW=$(date -Iseconds)
 
 # Close out the session in DB
-sqlite3 "$DB_FILE" "UPDATE sessions SET ended_at = '$NOW' WHERE session_id = '$SESSION_ID';" 2>/dev/null
+sqlite3 "$DB_FILE" "UPDATE session_summary SET ended_at = '$NOW' WHERE session_id = '$SESSION_ID';" 2>/dev/null
 
-# Get final stats
-STATS=$(sqlite3 "$DB_FILE" "SELECT tool_calls, bash_calls, edit_calls, write_calls, read_calls, agent_calls FROM sessions WHERE session_id = '$SESSION_ID';" 2>/dev/null)
+# Get final stats — totals live in session_summary, per-tool breakdown in tool_usage
+STATS=$(sqlite3 "$DB_FILE" "SELECT COUNT(*),
+    COALESCE(SUM(tool_name = 'Bash'), 0),
+    COALESCE(SUM(tool_name = 'Edit'), 0),
+    COALESCE(SUM(tool_name = 'Write'), 0),
+    COALESCE(SUM(tool_name = 'Read'), 0),
+    COALESCE(SUM(tool_name IN ('Agent', 'Task')), 0)
+    FROM tool_usage WHERE session_id = '$SESSION_ID';" 2>/dev/null)
 
 if [ -n "$STATS" ]; then
     IFS='|' read -r TOTAL BASH EDIT WRITE READ AGENT <<< "$STATS"

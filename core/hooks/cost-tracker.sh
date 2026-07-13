@@ -16,33 +16,41 @@ INPUT=$(cat)
 
 TOOL_NAME=$(echo "$INPUT" | jq -r '.tool_name // "unknown"' 2>/dev/null)
 HOOK_EVENT=$(echo "$INPUT" | jq -r '.hook_event_name // empty' 2>/dev/null)
+PROJECT_PATH=$(echo "$INPUT" | jq -r '.cwd // empty' 2>/dev/null)
+ERR_LOG="$PIPELINE_DIR/logs/cost-tracker.err"
+mkdir -p "$PIPELINE_DIR/logs"
 
-# Initialize DB if needed
-if [ ! -f "$DB_FILE" ]; then
-    sqlite3 "$DB_FILE" <<SQL
-CREATE TABLE IF NOT EXISTS sessions (
+# Ensure canonical schema (same as install.sh Step 8). IF NOT EXISTS makes
+# this idempotent — must run even when the DB file already exists, otherwise
+# an installer-created DB is never brought up to date and inserts fail.
+sqlite3 "$DB_FILE" <<SQL 2>>"$ERR_LOG"
+CREATE TABLE IF NOT EXISTS tool_usage (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
-    session_id TEXT UNIQUE,
-    started_at TEXT,
-    ended_at TEXT,
-    tool_calls INTEGER DEFAULT 0,
-    bash_calls INTEGER DEFAULT 0,
-    edit_calls INTEGER DEFAULT 0,
-    write_calls INTEGER DEFAULT 0,
-    read_calls INTEGER DEFAULT 0,
-    agent_calls INTEGER DEFAULT 0,
-    other_calls INTEGER DEFAULT 0
-);
-CREATE TABLE IF NOT EXISTS tool_log (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    timestamp TEXT NOT NULL DEFAULT (datetime('now')),
     session_id TEXT,
-    tool_name TEXT,
-    timestamp TEXT
+    tool_name TEXT NOT NULL,
+    model TEXT,
+    input_tokens INTEGER DEFAULT 0,
+    output_tokens INTEGER DEFAULT 0,
+    estimated_cost_usd REAL DEFAULT 0.0,
+    project_path TEXT,
+    duration_ms INTEGER DEFAULT 0
 );
-CREATE INDEX IF NOT EXISTS idx_tool_log_session ON tool_log(session_id);
-CREATE INDEX IF NOT EXISTS idx_sessions_started ON sessions(started_at);
+CREATE TABLE IF NOT EXISTS session_summary (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    session_id TEXT UNIQUE NOT NULL,
+    started_at TEXT NOT NULL,
+    ended_at TEXT,
+    total_input_tokens INTEGER DEFAULT 0,
+    total_output_tokens INTEGER DEFAULT 0,
+    total_cost_usd REAL DEFAULT 0.0,
+    tool_calls INTEGER DEFAULT 0,
+    project_path TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_tool_usage_session ON tool_usage(session_id);
+CREATE INDEX IF NOT EXISTS idx_tool_usage_timestamp ON tool_usage(timestamp);
+CREATE INDEX IF NOT EXISTS idx_session_summary_started ON session_summary(started_at);
 SQL
-fi
 
 # Get or create session ID
 if [ -f "$SESSION_FILE" ]; then
@@ -59,7 +67,7 @@ if [ -z "$SESSION_ID" ]; then
     cat > "$SESSION_FILE" <<JSON
 {"session_id": "$SESSION_ID", "started_at": "$(date -Iseconds)", "tool_count": 0}
 JSON
-    sqlite3 "$DB_FILE" "INSERT OR IGNORE INTO sessions (session_id, started_at) VALUES ('$SESSION_ID', '$(date -Iseconds)');"
+    sqlite3 "$DB_FILE" "INSERT OR IGNORE INTO session_summary (session_id, started_at, project_path) VALUES ('$SESSION_ID', '$(date -Iseconds)', '$PROJECT_PATH');" 2>>"$ERR_LOG"
 fi
 
 # Track this tool call
@@ -72,21 +80,10 @@ cat > "$SESSION_FILE" <<JSON
 {"session_id": "$SESSION_ID", "started_at": "$STARTED_AT", "tool_count": $TOOL_COUNT, "last_tool": "$TOOL_NAME", "last_at": "$NOW"}
 JSON
 
-# Log to SQLite (async to avoid blocking)
-{
-    sqlite3 "$DB_FILE" "INSERT INTO tool_log (session_id, tool_name, timestamp) VALUES ('$SESSION_ID', '$TOOL_NAME', '$NOW');"
-
-    # Update session counters
-    COLUMN="other_calls"
-    case "$TOOL_NAME" in
-        Bash) COLUMN="bash_calls" ;;
-        Edit) COLUMN="edit_calls" ;;
-        Write) COLUMN="write_calls" ;;
-        Read) COLUMN="read_calls" ;;
-        Agent) COLUMN="agent_calls" ;;
-    esac
-    sqlite3 "$DB_FILE" "UPDATE sessions SET tool_calls = tool_calls + 1, ${COLUMN} = ${COLUMN} + 1 WHERE session_id = '$SESSION_ID';"
-} &
+# Log to SQLite. Synchronous on purpose: two sub-ms statements, and a
+# backgrounded block is exactly what hid the schema failure for weeks.
+sqlite3 "$DB_FILE" "INSERT INTO tool_usage (session_id, tool_name, timestamp, project_path) VALUES ('$SESSION_ID', '$TOOL_NAME', '$NOW', '$PROJECT_PATH');" 2>>"$ERR_LOG"
+sqlite3 "$DB_FILE" "UPDATE session_summary SET tool_calls = tool_calls + 1 WHERE session_id = '$SESSION_ID';" 2>>"$ERR_LOG"
 
 # Suggest compaction at logical breakpoints
 # Every 100 tool calls, suggest compaction
