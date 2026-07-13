@@ -20,6 +20,10 @@ PROJECT_PATH=$(echo "$INPUT" | jq -r '.cwd // empty' 2>/dev/null)
 ERR_LOG="$PIPELINE_DIR/logs/cost-tracker.err"
 mkdir -p "$PIPELINE_DIR/logs"
 
+# SQL string literal escaping — tool names and paths come from the hook
+# payload and may contain single quotes (e.g. a project dir with an apostrophe)
+sql_esc() { local q="'"; printf '%s' "${1//$q/$q$q}"; }
+
 # Ensure canonical schema (same as install.sh Step 8). IF NOT EXISTS makes
 # this idempotent — must run even when the DB file already exists, otherwise
 # an installer-created DB is never brought up to date and inserts fail.
@@ -67,7 +71,7 @@ if [ -z "$SESSION_ID" ]; then
     cat > "$SESSION_FILE" <<JSON
 {"session_id": "$SESSION_ID", "started_at": "$(date -Iseconds)", "tool_count": 0}
 JSON
-    sqlite3 "$DB_FILE" "INSERT OR IGNORE INTO session_summary (session_id, started_at, project_path) VALUES ('$SESSION_ID', '$(date -Iseconds)', '$PROJECT_PATH');" 2>>"$ERR_LOG"
+    sqlite3 "$DB_FILE" "INSERT OR IGNORE INTO session_summary (session_id, started_at, project_path) VALUES ('$(sql_esc "$SESSION_ID")', '$(date -Iseconds)', '$(sql_esc "$PROJECT_PATH")');" 2>>"$ERR_LOG"
 fi
 
 # Track this tool call
@@ -82,8 +86,8 @@ JSON
 
 # Log to SQLite. Synchronous on purpose: two sub-ms statements, and a
 # backgrounded block is exactly what hid the schema failure for weeks.
-sqlite3 "$DB_FILE" "INSERT INTO tool_usage (session_id, tool_name, timestamp, project_path) VALUES ('$SESSION_ID', '$TOOL_NAME', '$NOW', '$PROJECT_PATH');" 2>>"$ERR_LOG"
-sqlite3 "$DB_FILE" "UPDATE session_summary SET tool_calls = tool_calls + 1 WHERE session_id = '$SESSION_ID';" 2>>"$ERR_LOG"
+sqlite3 "$DB_FILE" "INSERT INTO tool_usage (session_id, tool_name, timestamp, project_path) VALUES ('$(sql_esc "$SESSION_ID")', '$(sql_esc "$TOOL_NAME")', '$NOW', '$(sql_esc "$PROJECT_PATH")');" 2>>"$ERR_LOG"
+sqlite3 "$DB_FILE" "UPDATE session_summary SET tool_calls = tool_calls + 1 WHERE session_id = '$(sql_esc "$SESSION_ID")';" 2>>"$ERR_LOG"
 
 # Suggest compaction at logical breakpoints
 # Every 100 tool calls, suggest compaction

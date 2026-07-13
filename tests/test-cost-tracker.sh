@@ -74,6 +74,12 @@ SUMMARY="$TMP_HOME/.claude/pipeline/learnings/sessions.jsonl"
 jq -e '.total_tools == 3 and .bash == 1 and .edit == 1 and .read == 1' "$SUMMARY" >/dev/null \
     || fail "sessions.jsonl content wrong: $(cat "$SUMMARY")"
 
+# Quoting: values containing single quotes must be escaped, not break the SQL
+printf '{"tool_name":"mcp__o'"'"'tool","hook_event_name":"PostToolUse","cwd":"/tmp/o'"'"'brien project"}' \
+    | HOME="$TMP_HOME" bash "$TRACKER" >/dev/null 2>&1
+QROWS=$(sqlite3 "$DB" "SELECT COUNT(*) FROM tool_usage WHERE tool_name = 'mcp__o''tool' AND project_path = '/tmp/o''brien project';")
+[ "$QROWS" = "1" ] || fail "quoted values not recorded correctly, got '$QROWS' rows"
+
 # Self-heal: tracker must also work when the DB file does not exist yet,
 # creating the CANONICAL schema (not a divergent one)
 rm -f "$DB" "$TMP_HOME/.claude/pipeline/current-session.json"
@@ -82,4 +88,14 @@ printf '{"tool_name":"Write","hook_event_name":"PostToolUse"}' \
 ROWS=$(sqlite3 "$DB" "SELECT COUNT(*) FROM tool_usage;" 2>/dev/null)
 [ "$ROWS" = "1" ] || fail "self-heal path: expected 1 tool_usage row, got '$ROWS'"
 
-echo "PASS: cost-tracker records to canonical schema (7 assertions)"
+# Upgrade path: a DB created by the OLD hook (tool_log/sessions, no canonical
+# tables) must be brought up to date, with inserts landing in tool_usage
+rm -f "$DB" "$TMP_HOME/.claude/pipeline/current-session.json"
+sqlite3 "$DB" "CREATE TABLE tool_log (id INTEGER PRIMARY KEY, session_id TEXT, tool_name TEXT, timestamp TEXT);
+CREATE TABLE sessions (id INTEGER PRIMARY KEY, session_id TEXT UNIQUE, started_at TEXT);"
+printf '{"tool_name":"Grep","hook_event_name":"PostToolUse"}' \
+    | HOME="$TMP_HOME" bash "$TRACKER" >/dev/null 2>&1
+ROWS=$(sqlite3 "$DB" "SELECT COUNT(*) FROM tool_usage;" 2>/dev/null)
+[ "$ROWS" = "1" ] || fail "legacy-schema upgrade: expected 1 tool_usage row, got '$ROWS'"
+
+echo "PASS: cost-tracker records to canonical schema (9 assertions)"
