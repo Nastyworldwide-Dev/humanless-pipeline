@@ -221,6 +221,45 @@ after commit (review -> deploy are hook-enforced).
 | tdd-planner, migration-checker, impl-designer, impact-assessor | sonnet |
 | Architecture decisions, complex multi-file changes, planning | opus |
 | Agent Teams lead, arch-reviewer | opus |
+| Recon/exploration workers (`scout`, `Explore`) | haiku |
+| Mechanical volume work (`mech-executor`) | sonnet |
+| Judgment implementation + adversarial check (`executor`, `verifier`) | opus |
+
+Every agent in `~/.claude/agents/` carries a `model:` frontmatter pin matching this
+matrix — the pin is authoritative.
+
+## Delegation Policy — Roles, Not Models
+
+<!-- humanless-pipeline:delegation-policy:start -->
+The main session is the **Advisor** (orchestrator): it plans, writes task specs,
+routes, reviews results, and decides. It does NOT do volume work itself — that is
+the entire cost lever. All rules below speak in role names; model tiers live in
+exactly one place, the agent frontmatter pins in `~/.claude/agents/*.md`.
+
+### Routing (cheapest plausible role first)
+| Task shape | Route to |
+|------|------|
+| Trivial edit (~≤3 lines, one file) | inline — no delegation; a spec costs more than the edit |
+| Read-only lookup, recon, "where/how is X used?" | `scout` |
+| Broad codebase exploration | `Explore` |
+| Fully-specified mechanical work (renames, codemods, sweeps) | `mech-executor` |
+| Implementation needing judgment within a spec | `executor` |
+| Adversarial check of a worker's claim or diff | `verifier` |
+
+### Rules
+1. **Complete specs.** Workers don't share your context. A spec names the files,
+   the exact transformation or invariants, and the edge list. A worker returning
+   `BLOCKED:` means the spec was incomplete — fix the spec, don't blame the tier.
+2. **Escalate after 2 failures at a tier**: scout → mech-executor → executor →
+   Advisor takes over. Never retry a third time at the same tier.
+3. **Verify before commit.** Route `mech-executor` and `executor` diffs through
+   `verifier` (fresh context). On REFUTED, send the evidence back to the worker —
+   don't patch it up yourself.
+4. **Keep roles pure.** The verifier never fixes; the Advisor never types volume
+   diffs; scouts never edit.
+5. **Gates are unchanged.** Every hook and git-hook gate applies to worker output
+   identically — gates check the work, not the worker.
+<!-- humanless-pipeline:delegation-policy:end -->
 
 ## Skill Loading Behavior
 
