@@ -49,6 +49,10 @@
           {
             "type": "command",
             "command": "bash {{HOME}}/.claude/hooks/pre-commit-validate.sh"
+          },
+          {
+            "type": "command",
+            "command": "bash {{HOME}}/.claude/hooks/plan-gate.sh"
           }
         ]
       },
@@ -71,6 +75,10 @@
           {
             "type": "command",
             "command": "bash {{HOME}}/.claude/hooks/logging-gate.sh"
+          },
+          {
+            "type": "command",
+            "command": "bash {{HOME}}/.claude/hooks/plan-gate.sh"
           }
         ]
       }
@@ -111,6 +119,10 @@
           {
             "type": "command",
             "command": "bash {{HOME}}/.claude/hooks/cost-tracker.sh"
+          },
+          {
+            "type": "command",
+            "command": "bash {{HOME}}/.claude/hooks/model-usage-guard.sh"
           }
         ]
       }
@@ -184,13 +196,21 @@
           {
             "type": "command",
             "command": "bash {{HOME}}/.claude/hooks/requirement-interpreter.sh"
+          },
+          {
+            "type": "command",
+            "command": "bash {{HOME}}/.claude/hooks/model-usage-guard.sh"
           }
         ]
       }
     ]
   },
   "_comment_fallback": "Graceful degradation: if the session model is unavailable, fall back down the tier ladder. Aliases track the latest recommended version of each tier.",
-  "fallbackModel": ["opus", "sonnet"],
+  "fallbackModel": [
+    "opus[1m]",
+    "sonnet"
+  ],
   "skipDangerousModePermissionPrompt": true,
-  "teammateMode": "tmux"
+  "teammateMode": "tmux",
+  "model": "fable"
 }

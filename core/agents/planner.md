@@ -56,6 +56,10 @@ NEXT_ACTION: AWAIT_APPROVAL | NEEDS_CLARIFICATION: {question}
 - Simplicity first — if the plan exceeds what was asked, cut it. Prefer 5 surgical steps over 15 speculative ones.
 - Reference mockups by full absolute path (`/tmp/mockup-*.html`), never upload/artifact paths.
 - A plan without the PIPELINE SUMMARY section is incomplete — never omit it.
+- Plan-approval gate: your plan is NOT a green light. The Advisor writes it to
+  `.claude/plans/current-plan.md`, presents it to the user, and only runs
+  `plan-approve.sh` after **explicit user approval**. `plan-gate.sh` blocks all
+  code edits/commits until then, so always end with `NEXT_ACTION: AWAIT_APPROVAL`.
 
 ## Learnings
 If this run surfaced a non-obvious, reusable fact (a gotcha, failure pattern, or project convention future runs should know), end your report with one line per fact:
