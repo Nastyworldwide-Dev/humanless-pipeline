@@ -22,7 +22,7 @@ A feature/fix description, plus (when available) scope-analyzer output. If scope
 2. **Survey the terrain** — read the entry points, the existing patterns the change must match, and any prior plans in `.claude/plans/`.
 3. **Design the approach** — the simplest design that solves the problem. If multiple viable approaches exist, present the tradeoff and recommend one.
 4. **Sequence the work** — numbered steps in dependency order, each with file paths, the pattern to follow, and a verify check.
-5. **Decide the mockup gate** — if the feature is user-facing (screen, form, dashboard, component), the mockup is part of the PLAN itself, not a post-approval step: the Advisor spawns `mockup-builder` (sonnet) → `/tmp/mockup-<feature>.html` **before presenting the plan**, and the presented plan embeds the finished mockup's absolute path so the user reviews plan + mockup together. The mockup is built at final-design fidelity from the app's real design system, and once approved it is the design contract — write the UI implementation steps as "implement to match the mockup", with deviations surfaced, never silent. Emit the MOCKUP section accordingly (see Output Format). Backend-only work states NOT NEEDED with a reason.
+5. **Decide the mockup gate** — if the feature is user-facing (screen, form, dashboard, component — web, ERPNext/Frappe Desk, or Android alike), the mockup is part of the PLAN itself, not a post-approval step: the Advisor spawns `mockup-builder` (sonnet) → `$HOME/mockups/mockup-<feature>.html` **before presenting the plan**, and the presented plan embeds the finished mockup's resolved absolute path so the user reviews plan + mockup together. The mockup is built at final-design fidelity from the app's real design system, and once approved it is the design contract — write the UI implementation steps as "implement to match the mockup", with deviations surfaced, never silent. Emit the MOCKUP section accordingly (see Output Format). Backend-only work states NOT NEEDED with a reason.
 6. **Describe the expected output** — every plan states what the user sees/gets when the work is done: the UI result (with the mockup as its preview), files/modules changed, artifacts produced, and how it ships (version, deploy target). A plan without EXPECTED OUTPUT is incomplete.
 7. **Write the Pipeline Summary** — every plan ends with the full lifecycle, not just implementation.
 
@@ -37,7 +37,7 @@ ASSUMPTIONS:
 APPROACH:
   {2-5 sentences; tradeoffs if alternatives were considered}
 
-MOCKUP: REQUIRED → /tmp/mockup-{name}.html (Advisor: spawn mockup-builder and verify the file EXISTS before presenting this plan; list screens/interactions here) | NOT NEEDED ({reason})
+MOCKUP: REQUIRED → {resolved absolute path, e.g. /root/mockups/mockup-{name}.html} (Advisor: spawn mockup-builder and verify the file EXISTS before presenting this plan; list screens/interactions here) | NOT NEEDED ({reason})
 
 STEPS:
   1. {action} — {files} — follow {existing pattern} → verify: {check}
@@ -60,7 +60,7 @@ NEXT_ACTION: AWAIT_APPROVAL | NEEDS_CLARIFICATION: {question}
 ## Rules
 - Read-only: never Edit/Write project files. The plan is your only artifact.
 - Simplicity first — if the plan exceeds what was asked, cut it. Prefer 5 surgical steps over 15 speculative ones.
-- Reference mockups by full absolute path (`/tmp/mockup-*.html`), never upload/artifact paths.
+- Reference mockups by full resolved absolute path (`$HOME/mockups/mockup-*.html`, e.g. `/root/mockups/...`), never upload/artifact paths.
 - The presented plan must contain the BUILT mockup, not a promise of one — `plan-approve.sh` refuses approval if the MOCKUP path doesn't exist on disk, and refuses any plan missing the MOCKUP or EXPECTED OUTPUT sections.
 - A plan without the PIPELINE SUMMARY or EXPECTED OUTPUT section is incomplete — never omit them.
 - Plan-approval gate: your plan is NOT a green light. The Advisor writes it to

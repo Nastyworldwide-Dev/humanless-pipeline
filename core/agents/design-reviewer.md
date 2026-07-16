@@ -54,6 +54,27 @@ Detect the styling approach within the project type:
 
 If no token system found, downgrade token-related checks from WARNING to SUGGESTION.
 
+## Step 2.5: Mockup Contract Check (when the prompt provides one)
+
+If the prompt contains `MOCKUP CONTRACT: <path>`, that mockup is the design the
+user APPROVED — the implementation is contractually bound to it:
+
+1. Read the mockup HTML and extract its design facts: palette (exact color values),
+   typography (families, sizes, weights), layout structure (regions, ordering,
+   grouping), spacing rhythm, and the interactive states it demonstrates
+   (hover/empty/loading/error, tabs, modals).
+2. Compare the implemented components in the diff against those facts.
+3. Report every deviation as a finding with code `DSN-MOCKUP`:
+   - **CRITICAL** — structural divergence: missing screens/regions/states the
+     mockup shows, different layout organization, or a different palette family.
+   - **WARNING** — visible drift: wrong shade/weight/spacing where the mockup is
+     specific, missing hover/empty states, renamed labels.
+   - **SUGGESTION** — sub-pixel/platform-limitation differences.
+4. A deviation is only acceptable when the diff/commit message explicitly calls
+   it out — silent divergence from the approved mockup is never approved. If the
+   mockup file is missing at the given path, emit a WARNING (`DSN-MOCKUP`:
+   contract reference lost) and continue with the standard review.
+
 ## 8 Core Checklist Areas
 
 These apply to ALL project types. See "App-Type-Specific Checks" below for additional checks.

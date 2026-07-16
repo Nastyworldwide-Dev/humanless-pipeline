@@ -104,7 +104,18 @@ if [ -n "$CWD" ]; then
   esac
 
   if [ -n "$DESIGN_MATCH" ]; then
-    DESIGN_MSG=" ALSO MANDATORY: Spawn design-reviewer agent (subagent_type=\"design-reviewer\", run_in_background: true) with prompt: \"Design review diff HEAD~1..HEAD. Project type: ${APP_TYPE}. Check design tokens, accessibility (WCAG 2.1 AA), responsive patterns, theming, CSS best practices. Apply ${APP_TYPE}-specific checks. End with VERDICT: DESIGN_APPROVED or FIX_WARNINGS or FIX_CRITICAL.\""
+    # Mockup contract: if the approved plan embeds a mockup, the design review
+    # must compare the implementation against it (the mockup is the design contract).
+    CONTRACT_MSG=""
+    GIT_ROOT=$(git -C "$CWD" rev-parse --show-toplevel 2>/dev/null || echo "$CWD")
+    PLAN_FILE="$GIT_ROOT/.claude/plans/current-plan.md"
+    if [ -f "$PLAN_FILE" ]; then
+      MOCKUP_REF=$(grep -oE '/[A-Za-z0-9._/-]+/mockup-[A-Za-z0-9._-]+\.html' "$PLAN_FILE" | head -1 || true)
+      if [ -n "$MOCKUP_REF" ] && [ -f "$MOCKUP_REF" ]; then
+        CONTRACT_MSG=" MOCKUP CONTRACT: ${MOCKUP_REF} — compare the implemented UI against this approved mockup (palette, typography, spacing, layout, states) and report every deviation as a finding."
+      fi
+    fi
+    DESIGN_MSG=" ALSO MANDATORY: Spawn design-reviewer agent (subagent_type=\"design-reviewer\", run_in_background: true) with prompt: \"Design review diff HEAD~1..HEAD. Project type: ${APP_TYPE}. Check design tokens, accessibility (WCAG 2.1 AA), responsive patterns, theming, CSS best practices. Apply ${APP_TYPE}-specific checks.${CONTRACT_MSG} End with VERDICT: DESIGN_APPROVED or FIX_WARNINGS or FIX_CRITICAL.\""
   fi
 fi
 

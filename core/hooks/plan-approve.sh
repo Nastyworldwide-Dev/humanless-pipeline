@@ -32,11 +32,13 @@ fi
 #    explicit NOT NEEDED with a reason. A promised-but-unbuilt mockup refuses.
 if ! grep -qiE '^[[:space:]]*(#+[[:space:]]*)?MOCKUP' "$PLAN"; then
   echo "plan-approve: REFUSED — plan has no MOCKUP section." >&2
-  echo "  UI feature: spawn mockup-builder, embed 'MOCKUP: /tmp/mockup-<name>.html'." >&2
+  echo "  UI feature: spawn mockup-builder, embed 'MOCKUP: \$HOME/mockups/mockup-<name>.html' (resolved absolute path)." >&2
   echo "  Non-UI:     add 'MOCKUP: NOT NEEDED (<reason>)'." >&2
   exit 1
 fi
-mockup_path=$(grep -oiE '/tmp/mockup-[A-Za-z0-9._-]+\.html' "$PLAN" | head -1 || true)
+# Any absolute path ending in .../mockup-<name>.html (covers ~/mockups and legacy /tmp).
+mockup_path=$(grep -oE '/[A-Za-z0-9._/-]+/mockup-[A-Za-z0-9._-]+\.html' "$PLAN" | head -1 || true)
+[ -z "$mockup_path" ] && mockup_path=$(grep -oE '/tmp/mockup-[A-Za-z0-9._-]+\.html' "$PLAN" | head -1 || true)
 if [ -n "$mockup_path" ]; then
   if [ ! -f "$mockup_path" ]; then
     echo "plan-approve: REFUSED — plan references $mockup_path but the file does not exist." >&2
@@ -44,7 +46,7 @@ if [ -n "$mockup_path" ]; then
     exit 1
   fi
 elif ! grep -iE '^[[:space:]]*(#+[[:space:]]*)?MOCKUP' "$PLAN" | grep -qiE 'NOT NEEDED|N/A'; then
-  echo "plan-approve: REFUSED — MOCKUP section has neither a /tmp/mockup-*.html path nor 'NOT NEEDED (<reason>)'." >&2
+  echo "plan-approve: REFUSED — MOCKUP section has neither an absolute mockup-*.html path nor 'NOT NEEDED (<reason>)'." >&2
   exit 1
 fi
 
