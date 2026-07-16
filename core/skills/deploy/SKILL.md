@@ -1,6 +1,6 @@
 ---
 name: deploy
-description: Auto-deploy based on detected project type — Frappe, monorepo, Node, Electron, or generic
+description: Auto-deploy based on detected project type — Frappe, monorepo, Node, Electron, Android, or generic
 ---
 
 # Deploy — Project-Aware Auto-Deploy
@@ -83,6 +83,28 @@ Check for marker files (walk up from CWD):
 2. Test: `npm test`
 3. Push: `git push --follow-tags`
 
+#### Android App
+Mirrors the Frappe flow (version bump → gates → build → tag → push), with Gradle in place of bench:
+1. **Version bump** in `app/build.gradle.kts`: increment `versionCode` by 1;
+   bump `versionName` using the same commit-type rules as Frappe
+   (`feat:` → minor, otherwise patch; `BREAKING CHANGE` → major).
+2. **Quality gates** (stop on failure, report verbatim):
+   ```bash
+   ./gradlew detekt            # only when detekt config exists
+   ./gradlew testDebugUnitTest
+   ```
+   (`connectedDebugAndroidTest` needs a device/emulator — skip on a headless
+   VPS and note it as not-run.)
+3. **Build**: `./gradlew assembleRelease`. If the project has no
+   `signingConfig`, the APK is UNSIGNED — say so explicitly in the report,
+   never silently.
+4. **Archive artifact**: `mkdir -p ~/android-releases && cp
+   app/build/outputs/apk/release/*.apk
+   ~/android-releases/{project}-v${NEW_VERSION}.apk`
+5. **Commit version bump**: `chore(release): v${NEW_VERSION}` (with Co-Authored-By)
+6. **Tag + push**: `git tag -a "v${NEW_VERSION}" -m "Release v${NEW_VERSION}" && git push --follow-tags`
+7. **Report**: version, artifact path, signed/unsigned, test summary.
+
 #### Generic
 1. `git push`
 2. Report: "No project-specific deploy strategy detected. Code pushed."
@@ -96,4 +118,5 @@ Check for marker files (walk up from CWD):
 If deployment fails:
 1. **Frappe**: `bench --site {site} restore {backup_path}`
 2. **Node/Electron**: `git revert HEAD && git push`
-3. **Generic**: `git revert HEAD && git push`
+3. **Android**: `git revert HEAD && git push` — the previous APK stays in `~/android-releases/`; reinstall it on devices if one already shipped
+4. **Generic**: `git revert HEAD && git push`

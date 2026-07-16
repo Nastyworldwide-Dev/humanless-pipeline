@@ -37,12 +37,18 @@ esac
 # --- Detect app type for reviewer selection ---
 REVIEWER_MSG=""
 IS_FRAPPE_APP=false
+IS_ANDROID_APP=false
 if [ -n "$CWD" ]; then
   # Check if CWD is inside a Frappe app (has hooks.py in a parent dir)
+  # or an Android app (build.gradle.kts + app/src in a parent dir)
   CHECK_DIR="$CWD"
   while [ "$CHECK_DIR" != "/" ]; do
     if [ -f "$CHECK_DIR/hooks.py" ]; then
       IS_FRAPPE_APP=true
+      break
+    fi
+    if [ -f "$CHECK_DIR/build.gradle.kts" ] && [ -d "$CHECK_DIR/app/src" ]; then
+      IS_ANDROID_APP=true
       break
     fi
     CHECK_DIR=$(dirname "$CHECK_DIR")
@@ -52,6 +58,10 @@ fi
 if [ "$IS_FRAPPE_APP" = true ]; then
   # Frappe project: use specialized frappe-reviewer agent
   REVIEWER_MSG='MANDATORY HOOK: Commit succeeded. Spawn frappe-reviewer agent NOW (subagent_type="frappe-reviewer", run_in_background: true) with prompt: "Review diff HEAD~1..HEAD. Report Critical/Warning/Suggestion findings. End with NEXT_ACTION: DEPLOY or NEXT_ACTION: FIX_CRITICAL." Execute immediately.'
+elif [ "$IS_ANDROID_APP" = true ]; then
+  # Android project: use specialized android-reviewer agent (same retry
+  # contract as frappe: FIX_CRITICAL -> fix, re-commit, review re-triggers)
+  REVIEWER_MSG='MANDATORY HOOK: Commit succeeded. Spawn android-reviewer agent NOW (subagent_type="android-reviewer", run_in_background: true) with prompt: "Review diff HEAD~1..HEAD. Report Critical/Warning/Suggestion findings. End with NEXT_ACTION: DEPLOY or NEXT_ACTION: FIX_CRITICAL." If the verdict is FIX_CRITICAL: fix the findings and re-commit — this review re-triggers automatically; repeat until DEPLOY. Execute immediately.'
 else
   # Generic project: use the requesting-code-review skill
   REVIEWER_MSG='MANDATORY HOOK: Commit succeeded. Run requesting-code-review skill NOW for HEAD~1..HEAD. Execute immediately.'
@@ -69,7 +79,7 @@ fi
 # --- Check for security-sensitive changes ---
 SECURITY_MSG=""
 if [ -n "$CWD" ]; then
-  if echo "$CHANGED_FILES" | grep -qE '(api\.py|auth|permission|whitelist|login|session|password|token|secret)'; then
+  if echo "$CHANGED_FILES" | grep -qE '(api\.py|auth|permission|whitelist|login|session|password|token|secret|AndroidManifest\.xml|network_security|[Kk]eystore|[Cc]rypto|WebView)'; then
     SECURITY_MSG=' ALSO MANDATORY: Spawn security-reviewer agent (subagent_type="security-reviewer", run_in_background: true) with prompt: "Security review diff HEAD~1..HEAD. Check for SQL injection, permission bypass, XSS, hardcoded secrets, SSRF, mass assignment. End with VERDICT and BLOCKING: yes/no."'
   fi
 fi
