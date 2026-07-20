@@ -16,9 +16,15 @@ WORD_COUNT=$(echo "$PROMPT" | wc -w)
 VAGUE_COUNT=$(echo "$PROMPT" | grep -ciE '(make it better|improve|optimize|clean up|fix it|make it work|something like|sort of|kind of|maybe|probably|etc\.)' || echo 0)
 
 if [ "$VAGUE_COUNT" -gt 1 ]; then
-  cat <<EOF
+  if [ "${PIPELINE_AUTONOMOUS:-0}" = "1" ]; then
+    cat <<EOF
+{"systemMessage": "This request contains ambiguous language and no user is present (PIPELINE_AUTONOMOUS=1). MANDATORY: run /grill-me Autonomous Mode BEFORE implementing — self-interrogate against repo/wiki/git history, write .claude/plans/clarify-record.md with RESOLVED/ASSUMED/BLOCKER states and a 'BLOCKERS: n' line. A BLOCKER parks the task; never guess."}
+EOF
+  else
+    cat <<EOF
 {"systemMessage": "This request contains ambiguous language. Before implementing, consider running /grill-me to clarify requirements, or ask the user to specify: (1) what 'better' means concretely, (2) acceptance criteria, (3) which files/modules are in scope."}
 EOF
+  fi
 fi
 
 exit 0

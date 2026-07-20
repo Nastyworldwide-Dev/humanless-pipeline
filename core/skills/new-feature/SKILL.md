@@ -11,9 +11,12 @@ Runs the complete feature development pipeline from requirement to deployment.
 
 ### Step 1: Requirements Gathering
 - If the requirement is vague (< 2 sentences or uses words like "improve", "fix", "make better"):
-  - Run `/grill-me` to interview the user and reach shared understanding
+  - Interactive: run `/grill-me` to interview the user and reach shared understanding
+  - Auto mode (`PIPELINE_AUTONOMOUS=1`): run `/grill-me`'s **Autonomous Mode** —
+    self-interrogate against repo/wiki/git, write `.claude/plans/clarify-record.md`
+    (RESOLVED/ASSUMED/BLOCKER + `BLOCKERS: n`). A BLOCKER parks the task; never guess.
 - If the requirement is clear and specific:
-  - Proceed to Step 2
+  - Proceed to Step 2 (auto mode still writes a minimal clarify-record — plan-approve requires it)
 
 ### Step 2: Scope Analysis
 - Spawn `scope-analyzer` agent to map:
@@ -26,12 +29,18 @@ Runs the complete feature development pipeline from requirement to deployment.
 - Spawn `planner` agent (model: fable — highest tier) with the scope analysis results
 - Produces the full-lifecycle plan: assumptions, approach, numbered steps, risks,
   mockup gate decision, and the mandatory Pipeline Summary
-- If the plan returns `NEEDS_CLARIFICATION`, resolve with the user before proceeding
+- If the plan returns `NEEDS_CLARIFICATION`:
+  - Interactive: resolve with the user before proceeding
+  - Auto mode: route the questions through the self-grill ledger — resolve with
+    evidence, assume with rationale, or park the task on a BLOCKER
 
 ### Step 4: Mockup (sonnet — UI features only)
 - If the planner marked `MOCKUP GATE: REQUIRED`, spawn `mockup-builder` agent (model: sonnet)
-- Mockup lands at `/tmp/mockup-<feature>.html` — single self-contained interactive HTML file
+- Mockup lands at `~/mockups/<repo>/mockup-<feature>.html` — single self-contained interactive HTML file
 - **Get user sign-off on the mockup BEFORE any production code**
+- Auto mode: no user to sign off — render the mockup (agent-browser screenshot),
+  self-check it against the plan, mark it `auto-approved — pending human review`
+  in the plan, proceed, and flag it prominently in the final report
 - Backend-only features (`MOCKUP GATE: NOT NEEDED`) skip straight to Step 5
 
 ### Step 5: Implementation Design

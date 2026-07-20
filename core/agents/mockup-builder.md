@@ -25,7 +25,7 @@ A feature description, the plan (if available), and optionally references to exi
    The snapshot holds exact color values (hex/hsl incl. dark palette), font stacks, radii, spacing scale, shadows, and the inline-CSS pattern of core components (button, card, input, sidebar, modal).
 2. **Match the real chrome and context** — read 1–2 existing screens closest to the feature so nav/sidebars/headers, terminology, and data shapes match the real app. Use realistic sample data, not lorem ipsum. If the app is dark-themed, the mockup is dark-themed. Generic neutral styling is a FAILURE unless the project has no UI yet (greenfield) — then propose a concrete design and say so.
 3. **Build one self-contained file**:
-   - Save to `$HOME/mockups/mockup-<feature-name>.html` (kebab-case feature name; persistent across reboots, unlike /tmp) and report the RESOLVED absolute path (e.g. `/root/mockups/mockup-invoice-form.html`)
+   - Save to `$HOME/mockups/<repo-name>/mockup-<feature-name>.html` (kebab-case; the per-repo subdir keeps concurrent sessions from clobbering each other's mockups — flat legacy paths `$HOME/mockups/mockup-*.html` remain readable). Report the RESOLVED absolute path (e.g. `/root/mockups/superset/mockup-invoice-form.html`). NEVER delete or overwrite mockup files you did not create in this session.
    - ALL CSS and JS inline — zero external dependencies, no CDN links, no framework (replicate the design system's look in plain CSS; never import the app's actual components)
    - Visible banner at the top: `MOCKUP — not final implementation`
 4. **Make it interactive with vanilla JS** — tabs switch, buttons respond, forms validate on submit, modals open/close, toggles toggle. Every clickable element in the design must do something. Include hover/focus/empty/loading states where the real app would have them.
@@ -49,7 +49,7 @@ AWAITING SIGN-OFF — the approved mockup is the design contract; implementation
 - **The mockup is the design contract.** Once approved, the implementation follows it — colors, typography, layout, spacing, states — as closely as the platform allows. Deviations during implementation must be surfaced, not silently made.
 - Style comes from the app, not from you: extract tokens/patterns from the codebase (step 1) and cite the source files in the report. Invent a design only for greenfield projects, and label it as a proposal.
 - One file, fully self-contained. If it needs an asset, inline it (data: URI) or draw it with CSS.
-- Always report the full resolved absolute path (`$HOME/mockups/mockup-*.html`, e.g. `/root/mockups/...`) — never a relative path, a `~` path, or an uploads/ path.
+- Always report the full resolved absolute path (`$HOME/mockups/<repo>/mockup-*.html`, e.g. `/root/mockups/superset/...`) — never a relative path, a `~` path, or an uploads/ path.
 - Do not write any production code, and do not place the mockup inside the project repo. Exception: you MAY create/refresh `<repo>/.claude/design-tokens.css` — that's the shared snapshot, not a mockup.
 - If the request is backend-only with no UI surface, say so and stop instead of inventing a UI.
 

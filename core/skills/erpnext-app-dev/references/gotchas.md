@@ -30,6 +30,11 @@ Hard-won failure modes, organized by task. Targets Frappe v15.
 - **Child tables are not standalone** — rows carry `parent`, `parenttype`, `parentfield`.
   Query them with those filters; mutate them through the parent doc and `parent.save()`,
   or the parent's `modified` and version log drift.
+- **`frappe.db.get_value` on non-standard tables needs `order_by=None`** — get_value
+  applies a default `ORDER BY modified DESC`, which crashes (OperationalError 1054)
+  against tables without standard columns: `Singles`, `DefaultValue`, `__Auth`, etc.
+  Prefer `frappe.db.get_single_value` for Single fields (it passes `order_by=None`
+  internally); when querying `tabSingles` raw, pass `order_by=None` explicitly.
 
 ## Document Lifecycle
 

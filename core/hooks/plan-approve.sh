@@ -50,6 +50,22 @@ elif ! grep -iE '^[[:space:]]*(#+[[:space:]]*)?MOCKUP' "$PLAN" | grep -qiE 'NOT 
   exit 1
 fi
 
+# 3) Auto mode: the autonomous clarify record must exist and declare zero
+#    unresolved BLOCKERs — the pipeline never proceeds on a guess.
+if [ "${PIPELINE_AUTONOMOUS:-0}" = "1" ]; then
+  CLARIFY="$REPO/.claude/plans/clarify-record.md"
+  if [ ! -f "$CLARIFY" ]; then
+    echo "plan-approve: REFUSED — PIPELINE_AUTONOMOUS=1 but no clarify record at $CLARIFY." >&2
+    echo "  Run the autonomous branch of /grill-me first (RESOLVED/ASSUMED/BLOCKER ledger)." >&2
+    exit 1
+  fi
+  if ! grep -qE '^BLOCKERS:[[:space:]]*0[[:space:]]*$' "$CLARIFY"; then
+    echo "plan-approve: REFUSED — clarify record must end with 'BLOCKERS: 0'." >&2
+    echo "  Any unresolved BLOCKER parks the task back to the backlog with its open questions — never guess." >&2
+    exit 1
+  fi
+fi
+
 mkdir -p "$REPO/.claude/plans"
 h=$(sha256sum "$PLAN" | awk '{print $1}')
 printf '%s  approved_at=%s\n' "$h" "$(date -u +%FT%TZ)" > "$REPO/.claude/plans/.plan-approved"

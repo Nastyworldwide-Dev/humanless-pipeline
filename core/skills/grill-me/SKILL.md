@@ -56,3 +56,41 @@ Present back to the user:
 - Don't assume — if something is unclear, ask
 - Focus on BEHAVIOR not implementation details
 - Stop after 3 rounds of questions maximum — if still unclear, summarize what you know and flag gaps
+
+## Autonomous Mode (PIPELINE_AUTONOMOUS=1)
+
+When `PIPELINE_AUTONOMOUS=1` is set there is no user to interview. Do NOT ask
+questions into the void and do NOT self-answer superficially. Run the same
+three rounds as a **self-interrogation against evidence**:
+
+### Sources (check in order)
+1. The repo — code, schema, existing behavior (grep/read)
+2. The wiki graph and gotchas (`wiki_startup_hint`, learnings/)
+3. Git history — how similar changes were made before
+4. The task text itself
+
+### Classification — every question ends in exactly one state
+- **RESOLVED** — answered with evidence; cite it (file:line, schema field, commit)
+- **ASSUMED** — a default chosen; record the default AND the rationale. Assumptions are review-visible: reference them (A-1, A-2…) in the spec.
+- **BLOCKER** — cannot be resolved or safely assumed. The task must not proceed.
+
+### Output: `<repo>/.claude/plans/clarify-record.md`
+A table, one row per question: `| Question | State | Evidence / rationale |`
+End the file with the machine-checked summary line (exact format):
+
+```
+BLOCKERS: <count>
+```
+
+`plan-approve.sh` refuses approval in auto mode unless this line reads `BLOCKERS: 0`.
+
+### BLOCKER handling — park, never guess
+Move the task file back to `~/.claude/pipeline/tasks/backlog/`, append the open
+questions under `## Open questions`, set `status: parked` in its frontmatter,
+and end the run. A human answers in the task file (or the desktop Pipeline
+page); on pickup the answers merge into the ledger as RESOLVED rows.
+
+### Confirm-step replacement
+Instead of asking "does this capture your intent?", spawn a fresh-context
+`verifier` to cross-read the Requirement Summary against the original task
+text and flag contradictions or dropped requirements before proceeding.
