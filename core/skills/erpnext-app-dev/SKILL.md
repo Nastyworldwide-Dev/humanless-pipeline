@@ -84,6 +84,10 @@ bench --site test_site run-tests --module my_app.my_app.doctype.foo.test_foo
 - Tests subclass `FrappeTestCase` (auto-rollback per test)
 - Declare `test_dependencies` / provide test records for linked doctypes
 - TDD protocol applies: red → green → refactor (see /tdd skill)
+- Logic-bearing code (pricing, rounding, permissions, doc-state transitions):
+  add a hypothesis property test — patterns + declarative-fixture rules in
+  `references/property-testing.md`. The spec's `PROPERTY TESTS: REQUIRED`
+  line makes tdd-gate block without one.
 
 ## Step 9: Deploy
 

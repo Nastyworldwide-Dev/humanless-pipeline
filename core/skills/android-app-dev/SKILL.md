@@ -56,8 +56,14 @@ ls app/src/main/java app/src/test app/src/androidTest 2>/dev/null
 ```bash
 ./gradlew detekt --auto-correct    # lint gate (when detekt config exists)
 ./gradlew testDebugUnitTest        # unit tests
+./gradlew pitest                   # mutation floor (when pitest plugin configured)
 ./gradlew connectedDebugAndroidTest  # instrumented (device/emulator required — skip on headless VPS)
 ```
+
+- Everything strong runs emulator-free on the JVM: property tests
+  (kotest/jqwik), Pitest mutation floor, Roborazzi Compose screenshots —
+  setup + patterns in `references/property-and-screenshot-testing.md`.
+  The spec's `PROPERTY TESTS: REQUIRED` line makes tdd-gate block without one.
 
 ## Step 7: Commit → Review → Retry
 

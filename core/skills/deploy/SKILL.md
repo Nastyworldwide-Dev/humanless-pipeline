@@ -92,9 +92,13 @@ Mirrors the Frappe flow (version bump → gates → build → tag → push), wit
    ```bash
    ./gradlew detekt            # only when detekt config exists
    ./gradlew testDebugUnitTest
+   ./gradlew pitest            # only when pitest plugin configured — mutation
+                               # floor on domain modules; below-threshold FAILS
+                               # the gate. Not configured -> report
+                               # "MUTATION: not-configured" (never silent).
    ```
    (`connectedDebugAndroidTest` needs a device/emulator — skip on a headless
-   VPS and note it as not-run.)
+   VPS and note it as not-run. Everything above is pure JVM.)
 3. **Build**: `./gradlew assembleRelease`. If the project has no
    `signingConfig`, the APK is UNSIGNED — say so explicitly in the report,
    never silently.

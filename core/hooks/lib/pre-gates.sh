@@ -120,6 +120,36 @@ case "$APP_TYPE" in
     ;;
 esac
 
+# --- Gate: Frappe bench checks (opt-in via PRE_GATES_BENCH=1 — slow) ---
+# migrate + app-scoped tests are the strongest Frappe oracle; they need a
+# bench context and real time, so they're opt-in here. When not opted in,
+# the frappe-reviewer's EXECUTION-REQUIRED mandate runs them instead.
+if [ "${PRE_GATES_BENCH:-0}" = "1" ] && [ -f "$GIT_ROOT/hooks.py" -o -n "$(ls "$GIT_ROOT"/*/hooks.py 2>/dev/null)" ]; then
+  BENCH_ROOT=""
+  CHECK="$GIT_ROOT"
+  while [ "$CHECK" != "/" ]; do
+    [ -f "$CHECK/sites/common_site_config.json" ] && { BENCH_ROOT="$CHECK"; break; }
+    CHECK=$(dirname "$CHECK")
+  done
+  if [ -n "$BENCH_ROOT" ] && [ -f "$BENCH_ROOT/sites/currentsite.txt" ]; then
+    SITE=$(cat "$BENCH_ROOT/sites/currentsite.txt")
+    APP_NAME=$(basename "$GIT_ROOT")
+    if (cd "$BENCH_ROOT" && timeout 180 bench --site "$SITE" migrate) >/dev/null 2>&1; then
+      record "bench-migrate" "PASS"
+    else
+      record "bench-migrate" "FAIL" "migrate failed for site $SITE — schema changes not applied"
+    fi
+    TEST_OUT=$(cd "$BENCH_ROOT" && timeout 600 bench --site "$SITE" run-tests --app "$APP_NAME" 2>&1)
+    if [ $? -eq 0 ]; then
+      record "bench-tests" "PASS"
+    else
+      record "bench-tests" "FAIL" "$(echo "$TEST_OUT" | grep -E 'FAIL|Error' | head -3 | tr '\n' '; ')"
+    fi
+  else
+    record "bench-context" "PASS" "no bench root/site found — skipped"
+  fi
+fi
+
 # --- Gate: shell syntax on changed hook/scripts (pipeline repo itself) ---
 SH_CHANGED=$(echo "$CHANGED" | grep -E '\.sh$' || true)
 if [ -n "$SH_CHANGED" ]; then
