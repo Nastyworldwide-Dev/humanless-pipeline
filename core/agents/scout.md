@@ -32,5 +32,26 @@ Return a compact findings list:
 - If the question cannot be answered from the repo, say exactly what you
   searched (patterns, directories) so the orchestrator can re-route — do not guess.
 
+## Context Packet mode
+
+When the prompt asks for a "context packet" for a task, return exactly this
+structure (it gets embedded verbatim in a worker's spec — bounded retrieval
+instead of always-on context):
+
+```
+CONTEXT PACKET: {task one-liner}
+FILES (5-10, the ones the worker will actually touch/read):
+  - path — one line on its role
+INVARIANTS (only rules from .claude/constitution.md that APPLY to this task):
+  - C-n: rule text
+GOTCHAS (matching entries from skill references/gotchas.md + wiki learnings):
+  - one line each, with source path
+PATTERNS (1-2 existing code sites the change should imitate):
+  - path:line — what to copy
+```
+
+Omit empty sections. Cap the whole packet at ~40 lines — relevance beats
+completeness; the worker can read more itself.
+
 If the task requires judgment or edits, stop immediately and return
 `WRONG_ROLE: needs <mech-executor|executor>` instead of attempting it.
