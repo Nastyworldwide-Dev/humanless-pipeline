@@ -109,9 +109,22 @@ Mirrors the Frappe flow (version bump → gates → build → tag → push), wit
 1. `git push`
 2. Report: "No project-specific deploy strategy detected. Code pushed."
 
-### Step 4: Post-Deploy Verification
-- Check deploy logs for errors
-- If deploy failed, report the error and suggest rollback steps
+### Step 4: Post-Deploy Verification (back-edge — MANDATORY, not passive)
+Actively drive the deployed artifact; reading logs alone is not verification:
+- **Frappe**: `bench --site {site} migrate` exit code + hit one changed endpoint/page
+  (agent-browser or `bench execute`) and confirm the changed behavior responds
+- **Electron/desktop**: SHA-512 of the shipped artifact + service healthcheck
+  (the build-and-deploy script's checks count)
+- **Android**: APK exists in `~/android-releases/` and `aapt dump badging` (when
+  available) shows the new versionCode
+- **Node/monorepo**: hit the service healthcheck or run the smoke script if one exists
+
+On verification FAILURE — the back-edge fires:
+1. File a task: write `~/.claude/pipeline/tasks/backlog/task-$(date +%s).md` with
+   `status: backlog`, the failure output, and the deployed version — the pipeline
+   picks it up as a first-class task
+2. Flag the deploy in the report as SHIPPED-BUT-UNVERIFIED or roll back (below)
+3. Emit a `LEARNING:` line if a gate should have caught this pre-deploy
 - Log the deploy event for cost tracking
 
 ## Rollback

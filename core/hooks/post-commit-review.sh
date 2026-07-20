@@ -69,16 +69,21 @@ if [ -n "$CWD" ]; then
   done
 fi
 
+# Defect-class routing (back-edge): spec/plan defects amend the spec first —
+# never patch code past a wrong spec. Editing spec/plan re-arms the plan gate
+# automatically (content hash), so re-approval is enforced, not optional.
+ROUTING_RULE=' ROUTING (by finding class): class implementation/test -> fix code/tests and re-commit (review re-triggers; repeat until DEPLOY). class spec/plan -> do NOT patch code first: amend .claude/plans/spec-*.md (Amendments section) or the plan, re-run plan-approve, THEN fix and re-commit.'
+
 if [ "$IS_FRAPPE_APP" = true ]; then
   # Frappe project: use specialized frappe-reviewer agent
-  REVIEWER_MSG='MANDATORY HOOK: Commit succeeded. Spawn frappe-reviewer agent NOW (subagent_type="frappe-reviewer", run_in_background: true) with prompt: "Review diff HEAD~1..HEAD. Report Critical/Warning/Suggestion findings. End with NEXT_ACTION: DEPLOY or NEXT_ACTION: FIX_CRITICAL." Execute immediately.'
+  REVIEWER_MSG='MANDATORY HOOK: Commit succeeded. Spawn frappe-reviewer agent NOW (subagent_type="frappe-reviewer", run_in_background: true) with prompt: "Review diff HEAD~1..HEAD. EXECUTE the checks (ruff + app-scoped bench run-tests) before any verdict. Report Critical/Warning/Suggestion findings with [class:] tags. End with NEXT_ACTION: DEPLOY or NEXT_ACTION: FIX_CRITICAL."'"$ROUTING_RULE"' Execute immediately.'
 elif [ "$IS_ANDROID_APP" = true ]; then
   # Android project: use specialized android-reviewer agent (same retry
   # contract as frappe: FIX_CRITICAL -> fix, re-commit, review re-triggers)
-  REVIEWER_MSG='MANDATORY HOOK: Commit succeeded. Spawn android-reviewer agent NOW (subagent_type="android-reviewer", run_in_background: true) with prompt: "Review diff HEAD~1..HEAD. Report Critical/Warning/Suggestion findings. End with NEXT_ACTION: DEPLOY or NEXT_ACTION: FIX_CRITICAL." If the verdict is FIX_CRITICAL: fix the findings and re-commit — this review re-triggers automatically; repeat until DEPLOY. Execute immediately.'
+  REVIEWER_MSG='MANDATORY HOOK: Commit succeeded. Spawn android-reviewer agent NOW (subagent_type="android-reviewer", run_in_background: true) with prompt: "Review diff HEAD~1..HEAD. EXECUTE the JVM checks (gradlew test + detekt) before any verdict. Report Critical/Warning/Suggestion findings with [class:] tags. End with NEXT_ACTION: DEPLOY or NEXT_ACTION: FIX_CRITICAL."'"$ROUTING_RULE"' Execute immediately.'
 else
   # Generic project: use the requesting-code-review skill
-  REVIEWER_MSG='MANDATORY HOOK: Commit succeeded. Run requesting-code-review skill NOW for HEAD~1..HEAD. Execute immediately.'
+  REVIEWER_MSG='MANDATORY HOOK: Commit succeeded. Run requesting-code-review skill NOW for HEAD~1..HEAD (reviewers EXECUTE tests/typecheck before verdicts).'"$ROUTING_RULE"' Execute immediately.'
 fi
 
 # --- Check for cross-app impact ---
