@@ -6,14 +6,19 @@ A portable, hook-driven CI/CD pipeline for [Claude Code](https://docs.anthropic.
 
 The humanless pipeline turns Claude Code into a fully autonomous development assistant with:
 
-- **Pre-commit quality gates** -- lint auto-fix + typecheck gate, TDD reminders, secret detection, config protection
-- **Post-commit automation** -- code review, design review, auto-deploy, cost tracking
+- **Pre-commit quality gates** -- lint auto-fix + typecheck gate, TDD + spec-traceability gate, secret detection, config protection
+- **Post-commit automation** -- deterministic pre-gates, execution-grounded code review, design review, auto-deploy, cost tracking
+- **Autonomous clarify (self-grill)** -- with `PIPELINE_AUTONOMOUS=1` there is no user to interview, so requirements are self-interrogated against repo/wiki/git into an assumption ledger; unresolvable questions PARK the task instead of guessing
+- **Spec-driven gates** -- specs carry ID'd testable requirements (REQ-n), a constitution check, and a REQ↔test mapping that the TDD gate enforces
+- **Back-edges** -- review findings route by defect class (a wrong spec gets amended, not patched around); every push triggers a retro that classifies why extra shots happened
+- **Eval harness** -- SWE-bench-style private corpus mined from your own git history; replays tasks per pipeline revision and scores shots-to-green
 - **Deploy gate** -- deploy-phase commands restricted to admins in `deploy-permissions.json`
 - **Session management** -- context recovery, handoff persistence, dead letter queue
 - **Learning system** -- captures LEARNING: lines from every subagent into a searchable SQLite database
-- **Task pipeline** -- backlog, active, done, failed, blocked, archived task states
+- **Task pipeline** -- backlog, active, done, failed, blocked, archived task states, plus a cron-able headless runner
 - **Cost tracking** -- per-session and per-tool token usage and cost estimation
 - **Multi-tool enforcement** -- global git hooks make the gates apply to Codex and human commits, not just Claude Code
+- **Desktop visibility** -- the Superset desktop app's Pipeline page reads the task/telemetry/eval files directly: live runs, assumption ledgers, blocker questions (answer & resume), and the eval scoreboard
 
 ## Quick Start
 
@@ -90,14 +95,16 @@ User Prompt
     |
     v
 [UserPromptSubmit hooks]
-    |-- task-dispatcher.sh      Route to backlog or execute
+    |-- task-dispatcher.sh      Route to backlog (screens ambiguity at queue time)
     |-- prompt-team-router.sh   Select agent team composition
-    |-- requirement-interpreter.sh  Parse intent
+    |-- requirement-interpreter.sh  Parse intent; auto mode -> self-grill directive
     |
     v
 [PreToolUse hooks]
     |-- validate-bash.sh        Block dangerous commands
-    |-- tdd-gate.sh             Require tests for feat:/fix:
+    |-- plan-gate.sh            Block code/commits until a hash-approved plan exists
+    |-- tdd-gate.sh             Advisory test check; BLOCKING REQ<->test traceability
+    |                           + property-test enforcement when a spec exists
     |-- pre-commit-lint.sh      Run linters before commit
     |-- secret-detection.sh     Block secrets in Edit/Write
     |-- config-protection.sh    Guard config files
@@ -108,11 +115,16 @@ User Prompt
     |
     v
 [PostToolUse hooks]
-    |-- post-commit-review.sh   Dispatch code reviewer
+    |-- post-commit-review.sh   lib/pre-gates.sh FIRST (lint/schema/syntax,
+    |                           deterministic + authoritative — failures never
+    |                           reach an LLM reviewer), then dispatch reviewers
+    |                           with the EXECUTE-before-verdict mandate and
+    |                           defect-class routing (spec defects re-arm the plan gate)
     |-- post-edit-format.sh     Auto-format changed files
     |-- debug-statement-check.sh  Warn about leftover debugs
     |-- cost-tracker.sh         Log token usage
-    |-- task-completion.sh      Update task state
+    |-- task-completion.sh      Update task state; on push -> retro-analyst
+    |                           (shots-to-green + rerun-cause telemetry)
     |
     v
 [SubagentStop hooks]
@@ -130,6 +142,26 @@ User Prompt
 ```
 
 Every hook is a standalone bash script. No daemon, no background process. Claude Code's hook system triggers them at the right lifecycle moment.
+
+## The 1–2-Shot Machinery (2026-07)
+
+Research-backed upgrades aimed at first-shot correctness instead of long
+test-debug loops (design doc: `docs/design/2026-07-20-one-shot-initiative.md`):
+
+| Piece | Where | What it does |
+|-------|-------|--------------|
+| Execution-grounded review | `core/agents/{code,frappe,android}-reviewer.md`, `verifier.md` | Reviewers must RUN tests/typecheck before any verdict — text-only review is invalid output (LLM judges: <42% accurate without execution, ~72% with) |
+| Deterministic pre-gates | `core/hooks/lib/pre-gates.sh` | Lint / DocType schema / shell syntax / backup-artifact checks run before any LLM reviewer and short-circuit on failure |
+| Self-grill (autonomous clarify) | `core/skills/grill-me/SKILL.md` | `PIPELINE_AUTONOMOUS=1` switches the interview to self-interrogation → `clarify-record.md` ledger (RESOLVED/ASSUMED/BLOCKER); BLOCKERs park the task |
+| Headless runner | `core/pipeline/scripts/pipeline-run-task.sh` | Cron-able: picks the next backlog task, exports the autonomy flag, runs the full pipeline, routes done/failed/parked |
+| Spec gates | `core/templates/spec.md`, `plan-approve.sh`, `tdd-gate.sh` | REQ-n acceptance criteria + constitution check + REQ↔test mapping; unmapped REQs and missing property tests BLOCK feat/fix commits (only when a spec exists) |
+| Back-edges | `post-commit-review.sh`, `core/agents/retro-analyst.md` | Findings route by defect class (spec defects amend the spec, re-arm the plan gate); every push gets a retro that writes shots-to-green + cause telemetry |
+| Eval harness | `core/eval/` | `corpus-build.sh` mines feat/fix commits (their tests = the oracle), `eval-run.sh` replays them per pipeline revision, `eval-report.sh` emits the scoreboard |
+| Context packets | `core/agents/scout.md` | Bounded per-task retrieval (files + applicable invariants + gotchas) embedded in executor specs, instead of ever-growing always-on context |
+
+Per-repo files the gates look for: `.claude/constitution.md` (hard invariants),
+`.claude/plans/spec-*.md` (the active spec), `.claude/plans/clarify-record.md`
+(auto-mode ledger).
 
 ## Multi-Tool Enforcement (Codex, humans, scripts)
 
@@ -200,11 +232,14 @@ Notes:
     logs/                # Pipeline event logs
     tasks/
       active/            # Currently executing tasks
-      backlog/           # Queued tasks
+      backlog/           # Queued tasks (incl. status: parked — awaiting answers)
+      running/           # Task being executed by the headless runner
       done/              # Completed tasks
       failed/            # Failed tasks (DLQ)
       blocked/           # Waiting on dependencies
       archived/          # Old completed/failed tasks
+    telemetry/           # tasks.csv (shots/cause rows), pre-gates.log, runner logs
+    eval/                # corpus.jsonl, results.jsonl, report.md/json, logs/
     debounce/            # Prevents duplicate hook fires
     progress/            # Task progress tracking
     scripts/             # Pipeline utility scripts
@@ -229,13 +264,25 @@ Notes:
 cd ~/humanless-pipeline
 git pull
 ./install.sh --update
+bash verify.sh
 ```
 
 Update mode:
-- Re-symlinks all hooks, agents, and skills (picks up new files)
+- Re-symlinks all hooks, agents, and skills (picks up new files — e.g. the
+  `retro-analyst` agent, `lib/pre-gates.sh`, `pipeline/scripts/pipeline-run-task.sh`)
 - Merges new settings into existing `settings.json` (your customizations are preserved)
 - Re-runs pack installers
 - Re-verifies the installation
+
+Notes for the 1–2-shot release specifically:
+- **No new `settings.json` hook registrations are required** — pre-gates runs
+  inside `post-commit-review.sh` and the retro fires from `task-completion.sh`,
+  both already registered. A plain `--update` is enough.
+- The eval harness and headless runner run from the repo by absolute path — no
+  install step. Optional cron for autonomous task pickup:
+  `*/30 * * * * $HOME/.claude/pipeline/scripts/pipeline-run-task.sh >> $HOME/.claude/pipeline/telemetry/runner.log 2>&1`
+- Per-repo, opt in by adding `.claude/constitution.md` and (per feature) a
+  `spec-*.md` — repos without them keep the previous advisory behavior.
 
 ## Uninstalling
 
