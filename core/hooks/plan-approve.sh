@@ -50,7 +50,38 @@ elif ! grep -iE '^[[:space:]]*(#+[[:space:]]*)?MOCKUP' "$PLAN" | grep -qiE 'NOT 
   exit 1
 fi
 
-# 3) Auto mode: the autonomous clarify record must exist and declare zero
+# 3) Spec consistency pass (/analyze analogue) — when a spec exists, it must
+#    be internally consistent BEFORE approval: every REQ mapped, constitution
+#    checked, property-test decision recorded. Deterministic, no LLM.
+SPEC=$(ls -1t "$REPO/.claude/plans"/spec-*.md 2>/dev/null | head -1 || true)
+if [ -n "$SPEC" ]; then
+  REQS=$(grep -oE '^- (REQ-[0-9]+):' "$SPEC" | grep -oE 'REQ-[0-9]+' | sort -u)
+  if [ -z "$REQS" ]; then
+    echo "plan-approve: REFUSED — spec $SPEC has no '- REQ-n:' requirements." >&2
+    exit 1
+  fi
+  MAPPING=$(sed -n '/REQ ↔ Test mapping/,/^## /p' "$SPEC")
+  UNMAPPED=""
+  for r in $REQS; do
+    echo "$MAPPING" | grep -qE "\|[[:space:]]*${r}\b" || UNMAPPED="$UNMAPPED $r"
+  done
+  if [ -n "$UNMAPPED" ]; then
+    echo "plan-approve: REFUSED — spec REQs with no test mapping:$UNMAPPED" >&2
+    echo "  Every requirement maps to >=1 test (the acceptance criteria ARE the test plan)." >&2
+    exit 1
+  fi
+  if [ -f "$REPO/.claude/constitution.md" ] && ! grep -qE '^CONSTITUTION:[[:space:]]*PASS' "$SPEC"; then
+    echo "plan-approve: REFUSED — repo has a constitution but spec lacks 'CONSTITUTION: PASS'." >&2
+    echo "  Check every rule in .claude/constitution.md against the spec, then assert it." >&2
+    exit 1
+  fi
+  if ! grep -qE '^PROPERTY TESTS:[[:space:]]*(REQUIRED|N/A)' "$SPEC"; then
+    echo "plan-approve: REFUSED — spec lacks 'PROPERTY TESTS: REQUIRED' or 'PROPERTY TESTS: N/A (<reason>)'." >&2
+    exit 1
+  fi
+fi
+
+# 4) Auto mode: the autonomous clarify record must exist and declare zero
 #    unresolved BLOCKERs — the pipeline never proceeds on a guess.
 if [ "${PIPELINE_AUTONOMOUS:-0}" = "1" ]; then
   CLARIFY="$REPO/.claude/plans/clarify-record.md"

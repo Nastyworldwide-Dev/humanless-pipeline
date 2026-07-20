@@ -30,6 +30,49 @@ GIT_ROOT=$(cd "$CWD" && git rev-parse --show-toplevel 2>/dev/null)
 STAGED_FILES=$(cd "$GIT_ROOT" && git diff --cached --name-only 2>/dev/null || true)
 [ -z "$STAGED_FILES" ] && exit 0
 
+# --- Spec traceability gate (BLOCKING — only when a spec exists) ---
+# When .claude/plans/spec-*.md defines REQ ids, every REQ must map to an
+# existing test file, and PROPERTY TESTS: REQUIRED must be satisfied by a
+# property marker in >=1 mapped test. No spec => advisory behavior below
+# is unchanged.
+SPEC=$(ls -1t "$GIT_ROOT/.claude/plans"/spec-*.md 2>/dev/null | head -1 || true)
+if [ -n "$SPEC" ]; then
+  TRACE_ERRS=""
+  REQS=$(grep -oE '^- (REQ-[0-9]+):' "$SPEC" | grep -oE 'REQ-[0-9]+' | sort -u)
+  MAPPING=$(sed -n '/REQ ↔ Test mapping/,/^## /p' "$SPEC")
+  MAPPED_FILES=""
+  for r in $REQS; do
+    row=$(echo "$MAPPING" | grep -E "\|[[:space:]]*${r}\b" | head -1)
+    if [ -z "$row" ]; then
+      TRACE_ERRS="${TRACE_ERRS}\n  $r has no test mapping row"
+      continue
+    fi
+    tfile=$(echo "$row" | grep -oE '[A-Za-z0-9._/-]+\.(py|ts|tsx|js|kt|sh)' | head -1)
+    if [ -z "$tfile" ] || [ ! -f "$GIT_ROOT/$tfile" ]; then
+      TRACE_ERRS="${TRACE_ERRS}\n  $r maps to missing test file: ${tfile:-<none>}"
+    else
+      MAPPED_FILES="$MAPPED_FILES $tfile"
+    fi
+  done
+  if grep -qE '^PROPERTY TESTS:[[:space:]]*REQUIRED' "$SPEC"; then
+    PROP_FOUND=false
+    for tf in $MAPPED_FILES; do
+      grep -qE '@given|hypothesis|checkAll|forAll|@Property|proptest' "$GIT_ROOT/$tf" 2>/dev/null && PROP_FOUND=true && break
+    done
+    [ "$PROP_FOUND" = false ] && TRACE_ERRS="${TRACE_ERRS}\n  PROPERTY TESTS: REQUIRED but no mapped test contains a property marker (@given/checkAll/forAll)"
+  fi
+  if [ -n "$TRACE_ERRS" ]; then
+    cat >&2 <<EOF
+TDD GATE BLOCKED — spec traceability failed ($(basename "$SPEC")):
+$(printf '%b' "$TRACE_ERRS")
+
+Every REQ maps to >=1 existing test (acceptance criteria ARE the test plan).
+Fix the mapping/tests, or remove the REQ from the spec if it was cut.
+EOF
+    exit 2
+  fi
+fi
+
 MISSING_TESTS=""
 
 while IFS= read -r filepath; do
