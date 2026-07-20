@@ -165,6 +165,14 @@ if [ -n "$SH_CHANGED" ]; then
   fi
 fi
 
+# --- Gate: no generated backup artifacts in the commit ---
+# (retro learning 2026-07-20: a settings.json.tmpl.bak-<epoch> swept into a
+# feat commit — this class of mistake is deterministic to catch)
+BAK_CHANGED=$(echo "$CHANGED" | grep -E '\.bak(-[0-9]+)?$|\.orig$|~$' || true)
+if [ -n "$BAK_CHANGED" ]; then
+  record "no-backup-files" "FAIL" "generated backup artifacts committed: $(echo "$BAK_CHANGED" | tr '\n' ' ')"
+fi
+
 # --- Summary ---
 echo "----"
 printf "%b" "$RESULTS"

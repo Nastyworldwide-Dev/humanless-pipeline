@@ -77,6 +77,16 @@ else
   echo "  SKIP: ruff not installed"
 fi
 
+# 5b. Generated backup artifact in the commit -> FAIL
+mkrepo "$TMP/r5b"
+echo "stale" > "config.tmpl.bak-1784167796"
+git add -A && git commit -qm "feat: sweep with backup file"
+if bash "$GATES" "$TMP/r5b" >/dev/null 2>&1; then
+  die "committed .bak-<epoch> artifact should fail the gate"
+else
+  pass "committed backup artifact fails the gate"
+fi
+
 # 6. No changed files of interest -> PASS (doesn't block unrelated commits)
 mkrepo "$TMP/r6"
 echo "notes" > notes.md
