@@ -34,6 +34,20 @@ case "$COMMIT_TYPE" in
     ;;
 esac
 
+# --- Deterministic pre-gates: run BEFORE any LLM reviewer spawns ---
+# Failures short-circuit the review entirely (no LLM spend on commits that
+# fail lint/schema/syntax); the orchestrator fixes and re-commits, which
+# re-triggers this hook.
+PRE_GATES="$HOME/.claude/hooks/lib/pre-gates.sh"
+if [ -n "$CWD" ] && [ -x "$PRE_GATES" ]; then
+  PG_OUT=$(bash "$PRE_GATES" "$CWD" "HEAD~1..HEAD" 2>&1)
+  if [ $? -ne 0 ]; then
+    jq -n --arg out "$(echo "$PG_OUT" | tail -15)" \
+      '{systemMessage: ("PRE-GATES FAILED — deterministic checks are authoritative and run before any LLM review. Fix these and re-commit (review re-triggers automatically). Do NOT spawn reviewers for this commit.\n" + $out)}'
+    exit 0
+  fi
+fi
+
 # --- Detect app type for reviewer selection ---
 REVIEWER_MSG=""
 IS_FRAPPE_APP=false

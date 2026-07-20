@@ -1,7 +1,7 @@
 ---
 name: tdd-runner
 description: Runs the test suite after implementation file edits and reports pass/fail with failure details. Spawned automatically by the PostToolUse hook — test execution is automatic, not optional.
-model: haiku
+model: sonnet
 tools:
   - Bash
   - Read

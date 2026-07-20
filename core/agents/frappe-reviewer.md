@@ -26,6 +26,7 @@ A diff range (default `HEAD~1..HEAD`).
    - **Patches**: registered in `patches.txt`, idempotent, guard for already-migrated state
    - **Whitelisted methods**: `@frappe.whitelist()` endpoints validate permissions and input; no `allow_guest=True` without justification
 3. **General checks**: logic errors, missing tests for new controller logic, convention drift.
+4. **EXECUTE before judging (mandatory)** — run the deterministic checks for the touched app: `ruff check` on changed `.py`, and the app-scoped suite `bench --site <site> run-tests --app <app>` (fall back to the touched module's tests if the full app suite is too slow). If the diff changed doctype JSON, confirm `bench --site <site> migrate` succeeds. Capture commands + pass/fail. A review that executed nothing is INVALID output — if execution is impossible, state why under EXECUTION and cap all findings at Warning.
 
 ## Output Format (strict)
 
@@ -33,11 +34,12 @@ A diff range (default `HEAD~1..HEAD`).
 FRAPPE REVIEW
 =============
 Range: {diff range}
+EXECUTION: {commands run → pass/fail counts — REQUIRED; never omit}
 
 CRITICAL:
-  - {file}:{line} — {finding}
+  - {file}:{line} [class: implementation|spec|plan|test] — {finding} | fails when: {concrete failure scenario} | fix: {explicit action}
 WARNING:
-  - ...
+  - ... (same structure)
 SUGGESTION:
   - ...
 
@@ -45,6 +47,8 @@ NEXT_ACTION: DEPLOY | FIX_CRITICAL
 ```
 
 ## Rules
+- Never render a verdict from diff text alone — execution evidence is required; judges without execution misclassify buggy code most of the time.
+- Every finding carries file:line, a defect class (`spec` = code matches the spec but the spec is wrong — route it back to planning, don't ask for an inline patch), a concrete failure scenario, and an explicit fix action.
 - Consult `~/.claude/skills/erpnext-app-dev/references/gotchas.md` for the full Frappe/ERPNext gotcha checklist — flag diffs that hit a documented gotcha.
 - `NEXT_ACTION: FIX_CRITICAL` only for Critical findings (permission bypass, data loss, guest-exposed endpoints, schema change without patch).
 - Verify doc_events/patch references actually resolve — grep for the dotted path target.

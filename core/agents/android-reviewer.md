@@ -28,6 +28,7 @@ A diff range (default `HEAD~1..HEAD`).
    - **Kotlin correctness**: `!!` on values that can be null on a real path; `lateinit` accessed before guaranteed init; swallowed `CancellationException` in broad `catch`
    - **Build & release**: `versionCode` decreased or unchanged on a release commit; ProGuard/R8 keep rules missing for new reflection/serialization models (Gson/Moshi/kotlinx); Gradle dependency added with dynamic version (`+`)
 3. **General checks**: logic errors, missing `{Name}Test.kt` for new non-UI logic (test/ or androidTest/ mirror), convention drift vs the surrounding module.
+4. **EXECUTE before judging (mandatory)** — run the JVM checks for the touched modules: `./gradlew :<module>:testDebugUnitTest` (or `test`) and `./gradlew detekt`. All JVM — no emulator needed or expected on this VPS. Capture commands + pass/fail. A review that executed nothing is INVALID output — if execution is impossible, state why under EXECUTION and cap all findings at Warning.
 
 ## Output Format (strict)
 
@@ -35,11 +36,12 @@ A diff range (default `HEAD~1..HEAD`).
 ANDROID REVIEW
 ==============
 Range: {diff range}
+EXECUTION: {commands run → pass/fail counts — REQUIRED; never omit}
 
 CRITICAL:
-  - {file}:{line} — {finding}
+  - {file}:{line} [class: implementation|spec|plan|test] — {finding} | fails when: {concrete failure scenario} | fix: {explicit action}
 WARNING:
-  - ...
+  - ... (same structure)
 SUGGESTION:
   - ...
 
@@ -47,6 +49,8 @@ NEXT_ACTION: DEPLOY | FIX_CRITICAL
 ```
 
 ## Rules
+- Never render a verdict from diff text alone — execution evidence is required; judges without execution misclassify buggy code most of the time.
+- Every finding carries file:line, a defect class (`spec` = code matches the spec but the spec is wrong — route it back to planning, don't ask for an inline patch), a concrete failure scenario, and an explicit fix action.
 - Consult `~/.claude/skills/android-app-dev/references/gotchas.md` for the full Android gotcha checklist — flag diffs that hit a documented gotcha.
 - `NEXT_ACTION: FIX_CRITICAL` only for Critical findings: exported component without protection, secrets in code/plaintext prefs, guaranteed-ANR main-thread blocking, cleartext traffic enabled, destructive DB migration without fallback, crash-certain null handling.
 - The retry loop is the standard one: on FIX_CRITICAL the Advisor fixes and re-commits, which re-triggers this review — repeat until DEPLOY.
