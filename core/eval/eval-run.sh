@@ -74,24 +74,37 @@ while IFS= read -r entry; do
   shots=0
   passed=false
   feedback=""
+  # Shot/test logs persist OUTSIDE the worktree — a failed run must stay diagnosable
+  LOGD="$HOME/.claude/pipeline/eval/logs/$LABEL/$id"
+  mkdir -p "$LOGD"
   while [ "$shots" -lt "$MAX_SHOTS" ]; do
     shots=$((shots + 1))
     PROMPT="Implement this task in the current repo. Write/keep tests as needed; the change must make the repo's test suite pass.${feedback}
 
 TASK: $subject
 $body"
-    ( cd "$WT" && PIPELINE_AUTONOMOUS=1 claude -p "$PROMPT" ${PIPELINE_CLAUDE_FLAGS:---permission-mode acceptEdits} ) \
-      > "$WT/.eval-shot-$shots.log" 2>&1
+    # Clean env for the nested session: the parent claude harness injects vars
+    # that can make a child `claude -p` refuse or misroute. Keep only what the
+    # CLI needs; PIPELINE_AUTONOMOUS marks the run for the pipeline's gates.
+    ( cd "$WT" && env -i HOME="$HOME" PATH="$PATH" TERM="${TERM:-xterm}" USER="${USER:-root}" \
+        PIPELINE_AUTONOMOUS=1 \
+        claude -p "$PROMPT" ${PIPELINE_CLAUDE_FLAGS:---permission-mode acceptEdits} ) \
+      > "$LOGD/shot-$shots.log" 2>&1
+    CLAUDE_RC=$?
+    echo "[claude exit: $CLAUDE_RC]" >> "$LOGD/shot-$shots.log"
+    if [ $CLAUDE_RC -ne 0 ] && [ "$shots" -eq 1 ]; then
+      log "WARNING $id: claude exited $CLAUDE_RC on shot 1 — see $LOGD/shot-1.log (agent likely never ran; result would be junk)"
+    fi
 
     # Restore the oracle: the original commit's test files
     for tf in "${test_files[@]}"; do
       git -C "$WT" checkout -q "$sha" -- "$tf" 2>/dev/null || true
     done
-    if ( cd "$WT" && timeout 600 bash -c "$TCMD" ) > "$WT/.eval-test-$shots.log" 2>&1; then
+    if ( cd "$WT" && timeout 600 bash -c "$TCMD" ) > "$LOGD/test-$shots.log" 2>&1; then
       passed=true
       break
     fi
-    feedback=" PREVIOUS ATTEMPT FAILED — test output tail: $(tail -12 "$WT/.eval-test-$shots.log" | tr '"' "'")"
+    feedback=" PREVIOUS ATTEMPT FAILED — test output tail: $(tail -12 "$LOGD/test-$shots.log" | tr '"' "'")"
   done
   secs=$(( $(date +%s) - start ))
 
