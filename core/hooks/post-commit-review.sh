@@ -112,7 +112,7 @@ if [ "$IS_FRAPPE_APP" = true ]; then
 elif [ "$IS_ANDROID_APP" = true ]; then
   # Android project: use specialized android-reviewer agent (same retry
   # contract as frappe: FIX_CRITICAL -> fix, re-commit, review re-triggers)
-  REVIEWER_MSG='MANDATORY HOOK: Commit succeeded. Spawn android-reviewer agent NOW (subagent_type="android-reviewer", run_in_background: true) with prompt: "Review diff HEAD~1..HEAD. EXECUTE the JVM checks (gradlew test + detekt) before any verdict. Report Critical/Warning/Suggestion findings with [class:] tags. End with NEXT_ACTION: DEPLOY or NEXT_ACTION: FIX_CRITICAL."'"$ROUTING_RULE"' Execute immediately.'
+  REVIEWER_MSG='MANDATORY HOOK: Commit succeeded. Spawn android-reviewer agent NOW (subagent_type="android-reviewer", run_in_background: true) with prompt: "Review diff HEAD~1..HEAD. EXECUTE the JVM checks (gradlew test + detekt + verifyRoborazziDebug when src/test/snapshots exists) before any verdict. On screenshot verify failure list the diff PNG paths as DSN-MOCKUP evidence for the design-reviewer. Report Critical/Warning/Suggestion findings with [class:] tags. End with NEXT_ACTION: DEPLOY or NEXT_ACTION: FIX_CRITICAL."'"$ROUTING_RULE"' Execute immediately.'
 else
   # Generic project: use the requesting-code-review skill
   REVIEWER_MSG='MANDATORY HOOK: Commit succeeded. Run requesting-code-review skill NOW for HEAD~1..HEAD (reviewers EXECUTE tests/typecheck before verdicts).'"$ROUTING_RULE"' Execute immediately.'
