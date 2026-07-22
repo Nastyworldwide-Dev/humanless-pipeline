@@ -52,12 +52,22 @@ fi
 # task-completion dispatches GitHub CI on every frappe push (no local bench);
 # this reports the latest run's verdict so red CI can't go unnoticed.
 if command -v gh >/dev/null 2>&1; then
+  # 15-min verdict cache — session start must not pay N×10s of gh calls
+  # every time (or stall entirely when the API is rate-limited).
+  CI_CACHE="$DEBOUNCE_DIR/ci-verdicts"
+  mkdir -p "$CI_CACHE"
   for FR in /root/*/; do
     ls "$FR"*/hooks.py >/dev/null 2>&1 || continue
-    [ -d "$FR/.github/workflows" ] || continue
-    CI_LINE=$(cd "$FR" && timeout 10 gh run list --workflow CI --limit 1 \
-      --json conclusion,headBranch,updatedAt \
-      --jq '.[0] | "\(.conclusion // "in_progress") on \(.headBranch)"' 2>/dev/null)
+    ls "$FR".github/workflows/*.yml "$FR".github/workflows/*.yaml >/dev/null 2>&1 || continue
+    CACHE_FILE="$CI_CACHE/$(basename "$FR")"
+    if [ -f "$CACHE_FILE" ] && [ -n "$(find "$CACHE_FILE" -mmin -15 2>/dev/null)" ]; then
+      CI_LINE=$(cat "$CACHE_FILE")
+    else
+      CI_LINE=$(cd "$FR" && timeout 10 gh run list --workflow CI --limit 1 \
+        --json conclusion,headBranch,updatedAt \
+        --jq '.[0] | "\(.conclusion // "in_progress") on \(.headBranch)"' 2>/dev/null)
+      printf '%s' "$CI_LINE" > "$CACHE_FILE"
+    fi
     case "$CI_LINE" in
       failure*|cancelled*|timed_out*)
         MESSAGES="${MESSAGES}Frappe CI RED for $(basename "$FR"): ${CI_LINE} — investigate before building on top. "

@@ -60,8 +60,12 @@ if [ -z "$ENV_ERROR" ]; then
   AGENT_RC=$?
   DURATION=$(( $(date +%s) - T0 ))
   echo "$AGENT_OUT" > "$WT/.eval-agent.json"
-  COST=$(echo "$AGENT_OUT" | jq -r '.total_cost_usd // "null"' 2>/dev/null || echo null)
-  TURNS=$(echo "$AGENT_OUT" | jq -r '.num_turns // "null"' 2>/dev/null || echo null)
+  # Type-validated before the --argjson round-trip: a timeout-killed claude
+  # can leave truncated JSON, and a malformed value here would make the final
+  # row-append silently fail — the row must survive every agent failure mode.
+  COST=$(echo "$AGENT_OUT" | jq -r 'if (.total_cost_usd|type)=="number" then .total_cost_usd else "null" end' 2>/dev/null) || COST=null
+  TURNS=$(echo "$AGENT_OUT" | jq -r 'if (.num_turns|type)=="number" then .num_turns else "null" end' 2>/dev/null) || TURNS=null
+  [ -z "$COST" ] && COST=null; [ -z "$TURNS" ] && TURNS=null
   [ $AGENT_RC -ne 0 ] && log "agent exit $AGENT_RC (timeout=124)"
 fi
 

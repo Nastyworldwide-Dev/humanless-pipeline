@@ -55,7 +55,7 @@ if echo "$COMMAND" | grep -qE '(^|&&|;)[[:space:]]*git[[:space:]]+push'; then
       [ -d "$DIR" ] || continue
       GIT_ROOT=$(git -C "$DIR" rev-parse --show-toplevel 2>/dev/null) || continue
       ls "$GIT_ROOT"/*/hooks.py >/dev/null 2>&1 || continue
-      ls "$GIT_ROOT"/.github/workflows/*.yml >/dev/null 2>&1 || continue
+      ls "$GIT_ROOT"/.github/workflows/*.yml "$GIT_ROOT"/.github/workflows/*.yaml >/dev/null 2>&1 || continue
       BRANCH=$(git -C "$GIT_ROOT" branch --show-current 2>/dev/null)
       if [ -n "$BRANCH" ] && (cd "$GIT_ROOT" && timeout 30 gh workflow run CI --ref "$BRANCH") >/dev/null 2>&1; then
         CI_NOTE="${CI_NOTE}Frappe CI dispatched for $(basename "$GIT_ROOT")@$BRANCH (verdict at next session start via pipeline-health). "
