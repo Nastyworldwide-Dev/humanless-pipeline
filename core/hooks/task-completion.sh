@@ -6,15 +6,17 @@
 INPUT=$(cat)
 TOOL_NAME=$(echo "$INPUT" | jq -r '.tool_name // empty')
 COMMAND=$(echo "$INPUT" | jq -r '.tool_input.command // empty')
-EXIT_CODE=$(echo "$INPUT" | jq -r '.tool_result.exit_code // "0"')
+EXIT_CODE=$(echo "$INPUT" | jq -r '.tool_response.exit_code // .tool_result.exit_code // "0"')
 
 [ "$TOOL_NAME" = "Bash" ] || exit 0
 [ "$EXIT_CODE" = "0" ] || exit 0
 
 TASKS_DIR="$HOME/.claude/pipeline/tasks"
 
-# Detect git push success
-if echo "$COMMAND" | grep -qE '^\s*git\s+push'; then
+# Detect git push success — anywhere in the command, not only at its start:
+# real pushes are compound ("cd repo && git commit ... && git push"), which
+# the old ^-anchored match silently skipped (muting retro + CI dispatch).
+if echo "$COMMAND" | grep -qE '(^|&&|;)[[:space:]]*git[[:space:]]+push'; then
   TASK_NOTE=""
   # Check for active tasks and mark the most recent one as done
   ACTIVE_DIR="$TASKS_DIR/active"
@@ -42,16 +44,23 @@ if echo "$COMMAND" | grep -qE '^\s*git\s+push'; then
   # push dispatches the repo's GitHub CI; pipeline-health reports the result
   # at next session start. Push events don't trigger runs on this org
   # (known GitHub issue) — workflow_dispatch is the working path.
+  # Candidate repos come from every `cd <dir>` in the command PLUS the hook
+  # cwd — a compound command may push from a different repo than .cwd.
   CI_NOTE=""
-  if [ -n "$CWD" ]; then
-    GIT_ROOT=$(git -C "$CWD" rev-parse --show-toplevel 2>/dev/null || echo "")
-    if [ -n "$GIT_ROOT" ] && ls "$GIT_ROOT"/*/hooks.py >/dev/null 2>&1 && \
-       ls "$GIT_ROOT"/.github/workflows/*.yml >/dev/null 2>&1 && command -v gh >/dev/null 2>&1; then
+  if command -v gh >/dev/null 2>&1; then
+    CANDIDATES=$(printf '%s\n%s\n' "$CWD" \
+      "$(echo "$COMMAND" | grep -oE '(^|&&|;)[[:space:]]*cd[[:space:]]+[^ &;]+' | sed -E 's/.*cd[[:space:]]+//')" \
+      | sort -u)
+    while IFS= read -r DIR; do
+      [ -d "$DIR" ] || continue
+      GIT_ROOT=$(git -C "$DIR" rev-parse --show-toplevel 2>/dev/null) || continue
+      ls "$GIT_ROOT"/*/hooks.py >/dev/null 2>&1 || continue
+      ls "$GIT_ROOT"/.github/workflows/*.yml >/dev/null 2>&1 || continue
       BRANCH=$(git -C "$GIT_ROOT" branch --show-current 2>/dev/null)
       if [ -n "$BRANCH" ] && (cd "$GIT_ROOT" && timeout 30 gh workflow run CI --ref "$BRANCH") >/dev/null 2>&1; then
-        CI_NOTE="Frappe CI dispatched for $BRANCH (bench tests run on GitHub; pipeline-health reports the verdict next session). "
+        CI_NOTE="${CI_NOTE}Frappe CI dispatched for $(basename "$GIT_ROOT")@$BRANCH (verdict at next session start via pipeline-health). "
       fi
-    fi
+    done <<< "$CANDIDATES"
   fi
 
   if [ -n "$TASK_NOTE$RETRO_MSG$CI_NOTE" ]; then
