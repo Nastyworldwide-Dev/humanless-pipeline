@@ -142,6 +142,17 @@ These apply to ALL project types. See "App-Type-Specific Checks" below for addit
    - Absolute positioning used for layout (not overlays/tooltips) -> WARNING
    - Missing overflow handling on containers that receive dynamic content -> WARNING
 
+8b. **Icon System (DSN-ICON)** — icons come from Iconify, one set per project
+   (the set is recorded as `/* icon-set: <prefix> */` in `.claude/design-tokens.css`):
+   - Icons from a second set mixed into a project with a recorded icon set -> WARNING
+   - Emoji used as UI icons (buttons, nav, status indicators) -> WARNING
+   - Hand-authored/pasted SVG paths where an Iconify icon exists for the concept -> SUGGESTION
+   - Icon sizes off the project's scale (e.g. 17px next to 16/20/24 siblings) -> WARNING
+   - Same action represented by different glyphs across screens -> WARNING
+   - Icon-only control without aria-label/contentDescription -> CRITICAL (also area 4)
+   - When the mockup contract lists icon picks (`slot → <set>:<name>`), an
+     implementation using a different icon for that slot without calling it out -> WARNING (DSN-MOCKUP also applies)
+
 ## App-Type-Specific Checks
 
 ### When project type = react-ts | monorepo | electron | node

@@ -49,24 +49,36 @@ if [ -n "$CWD" ] && [ -x "$PRE_GATES" ]; then
 fi
 
 # --- Detect app type for reviewer selection ---
+# Scoped to the commit's git root (not a parent walk): Frappe app repos keep
+# hooks.py either at the root or one level down (<app>/hooks.py — same idiom
+# as pre-gates.sh); walking parents misclassified repo-root commits as generic.
 REVIEWER_MSG=""
 IS_FRAPPE_APP=false
 IS_ANDROID_APP=false
 if [ -n "$CWD" ]; then
-  # Check if CWD is inside a Frappe app (has hooks.py in a parent dir)
-  # or an Android app (build.gradle.kts + app/src in a parent dir)
-  CHECK_DIR="$CWD"
-  while [ "$CHECK_DIR" != "/" ]; do
-    if [ -f "$CHECK_DIR/hooks.py" ]; then
-      IS_FRAPPE_APP=true
-      break
+  DET_ROOT=$(git -C "$CWD" rev-parse --show-toplevel 2>/dev/null || echo "$CWD")
+  if [ -f "$DET_ROOT/hooks.py" ] || ls "$DET_ROOT"/*/hooks.py >/dev/null 2>&1; then
+    IS_FRAPPE_APP=true
+  elif [ -f "$DET_ROOT/build.gradle.kts" ] && [ -d "$DET_ROOT/app/src" ]; then
+    IS_ANDROID_APP=true
+  fi
+fi
+
+# --- Regression memory (R2): reviewers open with this repo's past failure ---
+# classes. learnings/<rig>.jsonl is written by retro-analyst/learnings-capture;
+# until now only scout consumed it. Joined single-line + double quotes stripped
+# to stay safe inside the hand-built JSON systemMessage below.
+LEARNINGS_MSG=""
+if [ -n "$CWD" ]; then
+  RIG=$(basename "$(git -C "$CWD" rev-parse --show-toplevel 2>/dev/null || echo "$CWD")")
+  LEARN_FILE="$HOME/.claude/pipeline/learnings/${RIG}.jsonl"
+  if [ -f "$LEARN_FILE" ]; then
+    RECENT_LEARNINGS=$(tail -12 "$LEARN_FILE" | jq -r '.learning // empty' 2>/dev/null \
+      | tr -d '"' | tail -6 | sed 's/^/(( /;s/$/ ))/' | paste -sd' ' -)
+    if [ -n "$RECENT_LEARNINGS" ]; then
+      LEARNINGS_MSG=" REGRESSION MEMORY — include verbatim in every reviewer prompt: known failure classes in this repo, check the diff against each before generic review: ${RECENT_LEARNINGS}"
     fi
-    if [ -f "$CHECK_DIR/build.gradle.kts" ] && [ -d "$CHECK_DIR/app/src" ]; then
-      IS_ANDROID_APP=true
-      break
-    fi
-    CHECK_DIR=$(dirname "$CHECK_DIR")
-  done
+  fi
 fi
 
 # Defect-class routing (back-edge): spec/plan defects amend the spec first —
@@ -156,5 +168,6 @@ if [ -n "$CWD" ]; then
   fi
 fi
 
-echo "{\"systemMessage\": \"${REVIEWER_MSG}${CROSS_APP_MSG}${SECURITY_MSG}${DESIGN_MSG}${DEP_CHECK_MSG}\"}"
+# jq-built so embedded quotes in reviewer prompts/learnings can't break the JSON
+jq -cn --arg m "${REVIEWER_MSG}${LEARNINGS_MSG}${CROSS_APP_MSG}${SECURITY_MSG}${DESIGN_MSG}${DEP_CHECK_MSG}" '{systemMessage: $m}'
 exit 0

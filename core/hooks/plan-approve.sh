@@ -50,6 +50,24 @@ elif ! grep -iE '^[[:space:]]*(#+[[:space:]]*)?MOCKUP' "$PLAN" | grep -qiE 'NOT 
   exit 1
 fi
 
+# 2.5) FLOW section (R5) — a dependency/flow graph of the touched modules so
+#      the plan is grounded in the real code graph (derive from .wiki/graph.json
+#      when present), or an explicit NOT NEEDED with a reason for
+#      single-file/no-dependency work.
+if ! grep -qiE '^[[:space:]]*(#+[[:space:]]*)?FLOW' "$PLAN"; then
+  echo "plan-approve: REFUSED — plan has no FLOW section." >&2
+  echo "  Add 'FLOW:' with a mermaid graph of the touched modules (planner derives it from" >&2
+  echo "  .wiki/graph.json / graph_neighbors when present, else from imports)," >&2
+  echo "  or 'FLOW: NOT NEEDED (<reason>)' for single-file/no-dependency work." >&2
+  exit 1
+fi
+if ! grep -iE '^[[:space:]]*(#+[[:space:]]*)?FLOW' "$PLAN" | grep -qiE 'NOT NEEDED|N/A'; then
+  if ! grep -qE '```mermaid|-->|→' "$PLAN"; then
+    echo "plan-approve: REFUSED — FLOW section has neither a mermaid block nor edges (-->)." >&2
+    exit 1
+  fi
+fi
+
 # 3) Spec consistency pass (/analyze analogue) — when a spec exists, it must
 #    be internally consistent BEFORE approval: every REQ mapped, constitution
 #    checked, property-test decision recorded. Deterministic, no LLM.
