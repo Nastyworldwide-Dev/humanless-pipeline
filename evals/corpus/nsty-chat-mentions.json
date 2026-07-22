@@ -1,0 +1,15 @@
+{
+  "id": "nsty-chat-mentions",
+  "repo": "/root/next-nsty_custom",
+  "stack": "frappe",
+  "base": "10396e5370f8e94a3b4bc3fd7de77d541a6b0cc9",
+  "ref": "49665d3",
+  "timeout_min": 30,
+  "max_turns": 60,
+  "setup_cmd": "cd board && bun install --silent",
+  "prompt": "Add chat @mentions with auto-invite to the Project Board app (board/ frontend + nsty/ Frappe backend). Composer: typing @ opens a live-filtered picker over the board's users with keyboard navigation; users who are NOT board members are flagged 'not a member · will be invited'. Mentions insert as plain-text '@Full Name' tokens; track a name-to-email map in the composer state and resolve tokens on send. Backend: post_project_chat gains a mentions param — validate it, store it in a hidden Comment custom field custom_board_mentions, and silently append mentioned NON-members to the project's Users table (welcome_email_sent=1; permission bypass is intentional — any chat participant may pull colleagues in). The mention-token parsing/resolution logic lives in board/src/lib/mentions.ts with unit tests (vitest). Commit when the frontend tests pass. Do not deploy.",
+  "oracle_files": [
+    "board/src/lib/mentions.test.ts"
+  ],
+  "check_cmd": "cd board && bunx vitest run src/lib/mentions.test.ts"
+}

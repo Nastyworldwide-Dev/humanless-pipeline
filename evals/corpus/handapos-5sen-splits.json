@@ -1,0 +1,15 @@
+{
+  "id": "handapos-5sen-splits",
+  "repo": "/root/revamp-ui",
+  "stack": "android",
+  "base": "f68681aaa521be3779053a74c4f51529b00b9223",
+  "ref": "edc27cb",
+  "timeout_min": 25,
+  "max_turns": 50,
+  "setup_cmd": "echo 'sdk.dir=/opt/android-sdk' > local.properties",
+  "prompt": "Two review follow-ups on the split-payment feature in this Android POS app (com.handa.pos, split-payment domain logic under app/src/main/java/com/handa/pos/core/domain/model/). (1) Equal split can produce cash portions like RM 3.33 that are physically untenderable in Malaysia — 5-sen minimum coin, exact tender, no change assist. Portions must snap DOWN to 5-sen multiples, with the last portion absorbing the remainder so the portions still sum exactly to the total. (2) When a coupon shifts the order total, regenerating the portions currently wipes the cashier's tender-mode assignments (cash/card per portion) — a regeneration triggered by a total change must keep the existing mode assignments; only changing the number of ways resets them. Extend the existing SplitPaymentTest to cover both behaviours. Commit when the tests pass. Do not release or deploy.",
+  "oracle_files": [
+    "app/src/test/java/com/handa/pos/core/domain/model/SplitPaymentTest.kt"
+  ],
+  "check_cmd": "export JAVA_HOME=/usr/lib/jvm/java-17-openjdk-amd64 ANDROID_HOME=/opt/android-sdk && ./gradlew testDebugUnitTest --tests com.handa.pos.core.domain.model.SplitPaymentTest -q"
+}

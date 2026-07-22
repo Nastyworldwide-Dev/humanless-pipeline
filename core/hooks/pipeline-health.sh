@@ -48,6 +48,24 @@ if [ -n "$CORE_HOOKS_DIR" ] && [ -d "$CORE_HOOKS_DIR" ]; then
   fi
 fi
 
+# --- Frappe CI verdicts (async loop back-edge) ---
+# task-completion dispatches GitHub CI on every frappe push (no local bench);
+# this reports the latest run's verdict so red CI can't go unnoticed.
+if command -v gh >/dev/null 2>&1; then
+  for FR in /root/*/; do
+    ls "$FR"*/hooks.py >/dev/null 2>&1 || continue
+    [ -d "$FR/.github/workflows" ] || continue
+    CI_LINE=$(cd "$FR" && timeout 10 gh run list --workflow CI --limit 1 \
+      --json conclusion,headBranch,updatedAt \
+      --jq '.[0] | "\(.conclusion // "in_progress") on \(.headBranch)"' 2>/dev/null)
+    case "$CI_LINE" in
+      failure*|cancelled*|timed_out*)
+        MESSAGES="${MESSAGES}Frappe CI RED for $(basename "$FR"): ${CI_LINE} — investigate before building on top. "
+        ;;
+    esac
+  done
+fi
+
 # --- Check for active tasks (resume after hibernation) ---
 ACTIVE_COUNT=$(find "$TASKS_DIR/active" -name '*.json' -type f 2>/dev/null | wc -l)
 if [ "$ACTIVE_COUNT" -gt 0 ]; then

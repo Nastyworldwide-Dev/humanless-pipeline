@@ -38,8 +38,24 @@ if echo "$COMMAND" | grep -qE '^\s*git\s+push'; then
     RETRO_MSG="MANDATORY HOOK: Push succeeded. Spawn retro-analyst agent NOW (subagent_type=\"retro-analyst\", run_in_background: true) with prompt: \"Retro for repo $CWD, range origin/HEAD@{1}..HEAD (fall back to the last 6h of commits). Count shots-to-green, classify causes, append the telemetry CSV row.\" Execute immediately."
   fi
 
-  if [ -n "$TASK_NOTE$RETRO_MSG" ]; then
-    jq -n --arg msg "${TASK_NOTE}${RETRO_MSG}" '{systemMessage: $msg}'
+  # Async CI loop for Frappe app repos (no local bench on this VPS): every
+  # push dispatches the repo's GitHub CI; pipeline-health reports the result
+  # at next session start. Push events don't trigger runs on this org
+  # (known GitHub issue) — workflow_dispatch is the working path.
+  CI_NOTE=""
+  if [ -n "$CWD" ]; then
+    GIT_ROOT=$(git -C "$CWD" rev-parse --show-toplevel 2>/dev/null || echo "")
+    if [ -n "$GIT_ROOT" ] && ls "$GIT_ROOT"/*/hooks.py >/dev/null 2>&1 && \
+       ls "$GIT_ROOT"/.github/workflows/*.yml >/dev/null 2>&1 && command -v gh >/dev/null 2>&1; then
+      BRANCH=$(git -C "$GIT_ROOT" branch --show-current 2>/dev/null)
+      if [ -n "$BRANCH" ] && (cd "$GIT_ROOT" && timeout 30 gh workflow run CI --ref "$BRANCH") >/dev/null 2>&1; then
+        CI_NOTE="Frappe CI dispatched for $BRANCH (bench tests run on GitHub; pipeline-health reports the verdict next session). "
+      fi
+    fi
+  fi
+
+  if [ -n "$TASK_NOTE$RETRO_MSG$CI_NOTE" ]; then
+    jq -n --arg msg "${TASK_NOTE}${CI_NOTE}${RETRO_MSG}" '{systemMessage: $msg}'
   fi
 fi
 

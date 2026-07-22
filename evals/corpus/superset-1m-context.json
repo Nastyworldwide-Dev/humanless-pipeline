@@ -1,0 +1,17 @@
+{
+  "id": "superset-1m-context",
+  "repo": "/root/superset",
+  "stack": "monorepo-ts",
+  "base": "74bc1adaa9a87c9b47f1a93ae5eeefd8c98d4b06",
+  "ref": "981eb6f65998e436f9224b3b17387d7de5778665",
+  "timeout_min": 25,
+  "max_turns": 50,
+  "setup_cmd": "ln -s /root/superset/node_modules node_modules 2>/dev/null; ln -s /root/superset/apps/desktop/node_modules apps/desktop/node_modules 2>/dev/null; ln -s /root/superset/packages/host-service/node_modules packages/host-service/node_modules 2>/dev/null; true",
+  "prompt": "Bug in our AI context-usage tracking, in both apps/desktop and packages/host-service. The context-window mapping only grants a 1M-token window to [1m]-tagged sessions and Fable/Mythos models — Opus 4.8, Sonnet 5 and Sonnet 4.6 sessions are measured against a 200K window, which over-reports utilization 5x (a session actually at 12% shows 60%). Per the current Anthropic model catalog these models run a 1M context window natively; only Haiku 4.5 and legacy models (Opus <= 4.5, Sonnet <= 4.5) remain 200K. Fix the mapping in the desktop context-usage watcher (apps/desktop/src/main/lib/context-usage/) AND the host-service paths (packages/host-service/src/self-hosted/ — agent-usage and context-usage/parse-jsonl) so version detection decides the window. While you are in there, derive versioned model display names (e.g. \"Opus 4.8\" instead of \"Opus 4\") so new releases render without table edits. Update the existing unit tests to cover the new mapping. Do not deploy; just commit when tests pass.",
+  "oracle_files": [
+    "apps/desktop/src/main/lib/context-usage/parse.test.ts",
+    "packages/host-service/src/self-hosted/agent-usage.test.ts",
+    "packages/host-service/src/self-hosted/context-usage/parse-jsonl.test.ts"
+  ],
+  "check_cmd": "bun test apps/desktop/src/main/lib/context-usage/parse.test.ts packages/host-service/src/self-hosted/agent-usage.test.ts packages/host-service/src/self-hosted/context-usage/parse-jsonl.test.ts"
+}
