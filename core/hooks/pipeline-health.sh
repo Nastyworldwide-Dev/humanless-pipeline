@@ -32,6 +32,22 @@ if [ -x "$SELF_TEST" ]; then
   fi
 fi
 
+# --- Hook link integrity: every core hook must be linked in ~/.claude ---
+# (2026-07-22: lib/pre-gates.sh shipped without a link and pre-gates silently
+# never ran on real commits — new hook files need install.sh re-run or a link)
+CORE_HOOKS_DIR=$(dirname "$(readlink -f "${BASH_SOURCE[0]}")" 2>/dev/null)
+if [ -n "$CORE_HOOKS_DIR" ] && [ -d "$CORE_HOOKS_DIR" ]; then
+  UNLINKED=""
+  for f in "$CORE_HOOKS_DIR"/*.sh "$CORE_HOOKS_DIR"/lib/*.sh; do
+    [ -f "$f" ] || continue
+    rel="${f#"$CORE_HOOKS_DIR"/}"
+    [ -e "$HOME/.claude/hooks/$rel" ] || UNLINKED="${UNLINKED}${rel} "
+  done
+  if [ -n "$UNLINKED" ]; then
+    MESSAGES="${MESSAGES}UNLINKED HOOKS (will silently not run): ${UNLINKED}— re-run install.sh or ln -s them into ~/.claude/hooks/. "
+  fi
+fi
+
 # --- Check for active tasks (resume after hibernation) ---
 ACTIVE_COUNT=$(find "$TASKS_DIR/active" -name '*.json' -type f 2>/dev/null | wc -l)
 if [ "$ACTIVE_COUNT" -gt 0 ]; then

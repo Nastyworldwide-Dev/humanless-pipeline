@@ -165,6 +165,34 @@ if [ -n "$SH_CHANGED" ]; then
   fi
 fi
 
+# --- Advisory: design-token color drift (WARN, never FAIL) ---
+# Deterministic detection of hex colors ADDED in front-end files that aren't
+# in <repo>/.claude/design-tokens.css. Advisory because legit literals exist
+# (ANSI palettes, brand one-offs) — post-commit-review passes WARNs to the
+# design-reviewer to judge token vs intentional. Spacing/type-scale drift is
+# deliberately NOT checked deterministically (too noisy); reviewer covers it.
+TOKENS_FILE="$GIT_ROOT/.claude/design-tokens.css"
+if [ -f "$TOKENS_FILE" ]; then
+  FE_CHANGED=$(echo "$CHANGED" | grep -E '\.(css|scss|less|tsx|jsx|vue|svelte|html|kt|xml)$' || true)
+  if [ -n "$FE_CHANGED" ]; then
+    KNOWN_HEX=$(grep -oiE '#[0-9a-f]{3,8}\b' "$TOKENS_FILE" | tr 'A-F' 'a-f' | sort -u)
+    DRIFT=""
+    while read -r f; do
+      [ -f "$f" ] || continue
+      NEW_HEX=$(git diff "$RANGE" -- "$f" 2>/dev/null | grep -E '^\+[^+]' \
+        | grep -oiE '#[0-9a-f]{8}\b|#[0-9a-f]{6}\b|#[0-9a-f]{3}\b' | tr 'A-F' 'a-f' | sort -u)
+      for c in $NEW_HEX; do
+        echo "$KNOWN_HEX" | grep -qx "$c" || DRIFT="${DRIFT}${c}(${f}) "
+      done
+    done <<< "$FE_CHANGED"
+    if [ -n "$DRIFT" ]; then
+      record "token-drift" "WARN" "hex not in design-tokens.css: $(echo "$DRIFT" | head -c 400)"
+    else
+      record "token-drift" "PASS"
+    fi
+  fi
+fi
+
 # --- Gate: no generated backup artifacts in the commit ---
 # (retro learning 2026-07-20: a settings.json.tmpl.bak-<epoch> swept into a
 # feat commit — this class of mistake is deterministic to catch)

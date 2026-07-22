@@ -39,12 +39,19 @@ esac
 # fail lint/schema/syntax); the orchestrator fixes and re-commits, which
 # re-triggers this hook.
 PRE_GATES="$HOME/.claude/hooks/lib/pre-gates.sh"
+TOKEN_DRIFT_MSG=""
 if [ -n "$CWD" ] && [ -x "$PRE_GATES" ]; then
   PG_OUT=$(bash "$PRE_GATES" "$CWD" "HEAD~1..HEAD" 2>&1)
   if [ $? -ne 0 ]; then
     jq -n --arg out "$(echo "$PG_OUT" | tail -15)" \
       '{systemMessage: ("PRE-GATES FAILED — deterministic checks are authoritative and run before any LLM review. Fix these and re-commit (review re-triggers automatically). Do NOT spawn reviewers for this commit.\n" + $out)}'
     exit 0
+  fi
+  # Advisory passthrough: token-drift WARNs don't fail the gate but must reach
+  # the design-reviewer (deterministic detection, LLM judgment).
+  TD_LINE=$(echo "$PG_OUT" | grep -E '^token-drift: WARN' | head -1)
+  if [ -n "$TD_LINE" ]; then
+    TOKEN_DRIFT_MSG=" TOKEN DRIFT (deterministic, advisory): ${TD_LINE#token-drift: WARN — } — include in the design-reviewer prompt; each hex is either replaced with a token, added to design-tokens.css, or justified as an intentional literal."
   fi
 fi
 
@@ -182,5 +189,5 @@ if [ -n "$CWD" ]; then
 fi
 
 # jq-built so embedded quotes in reviewer prompts/learnings can't break the JSON
-jq -cn --arg m "${REVIEWER_MSG}${LEARNINGS_MSG}${CROSS_APP_MSG}${SECURITY_MSG}${DESIGN_MSG}${DEP_CHECK_MSG}" '{systemMessage: $m}'
+jq -cn --arg m "${REVIEWER_MSG}${LEARNINGS_MSG}${CROSS_APP_MSG}${SECURITY_MSG}${DESIGN_MSG}${TOKEN_DRIFT_MSG}${DEP_CHECK_MSG}" '{systemMessage: $m}'
 exit 0

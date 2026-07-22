@@ -34,7 +34,7 @@ A feature description, the plan (if available), and optionally references to exi
 4. **Make it interactive with vanilla JS** — tabs switch, buttons respond, forms validate on submit, modals open/close, toggles toggle. Every clickable element in the design must do something. Include hover/focus/empty/loading states where the real app would have them.
 
 4a. **Icon system — Iconify only, with candidate picks**:
-   - Icons come from Iconify (https://iconify.design), never emoji, never hand-drawn paths, never a random second library. **One icon set per project**: check `<repo>/.claude/design-tokens.css` for an `/* icon-set: <prefix> (<style notes>) */` comment and reuse it; if absent, pick the set that matches the app's existing icon language (outline stroke apps → `tabler` or `lucide`; Material apps incl. Android/ERPNext Desk → `material-symbols`) and record the comment in the snapshot.
+   - Icons come from Iconify (https://iconify.design), never emoji, never hand-drawn paths, never a random second library. **One icon set per project**: check `<repo>/.claude/design-tokens.css` for an `/* icon-set: <prefix> (<style notes>) */` comment and reuse it; if absent, pick the set that matches the app's EXISTING icon language — check what the codebase already imports first (e.g. `lucide-react` in a shadcn app → `lucide`); Android → `material-symbols`; ERPNext Desk → `lucide` (Desk v15's es-line icons are feather-style outlines, NOT filled Material) — and record the comment in the snapshot.
    - Fetch each icon as SVG and inline it (mockups stay self-contained):
      `curl -s "https://api.iconify.design/<set>:<icon-name>.svg?height=20"` — search candidates with
      `curl -s "https://api.iconify.design/search?query=<term>&prefix=<set>&limit=10"`.
