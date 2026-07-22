@@ -57,9 +57,20 @@ IS_FRAPPE_APP=false
 IS_ANDROID_APP=false
 if [ -n "$CWD" ]; then
   DET_ROOT=$(git -C "$CWD" rev-parse --show-toplevel 2>/dev/null || echo "$CWD")
-  if [ -f "$DET_ROOT/hooks.py" ] || ls "$DET_ROOT"/*/hooks.py >/dev/null 2>&1; then
+  # hooks.py alone is too weak a marker (mkdocs/ansible also ship hooks.py);
+  # require the sibling modules.txt every Frappe app package carries.
+  if [ -f "$DET_ROOT/hooks.py" ] && [ -f "$DET_ROOT/modules.txt" ]; then
     IS_FRAPPE_APP=true
-  elif [ -f "$DET_ROOT/build.gradle.kts" ] && [ -d "$DET_ROOT/app/src" ]; then
+  else
+    for hp in "$DET_ROOT"/*/hooks.py; do
+      [ -f "$hp" ] || continue
+      if [ -f "$(dirname "$hp")/modules.txt" ]; then
+        IS_FRAPPE_APP=true
+        break
+      fi
+    done
+  fi
+  if [ "$IS_FRAPPE_APP" = false ] && [ -f "$DET_ROOT/build.gradle.kts" ] && [ -d "$DET_ROOT/app/src" ]; then
     IS_ANDROID_APP=true
   fi
 fi
@@ -73,8 +84,10 @@ if [ -n "$CWD" ]; then
   RIG=$(basename "$(git -C "$CWD" rev-parse --show-toplevel 2>/dev/null || echo "$CWD")")
   LEARN_FILE="$HOME/.claude/pipeline/learnings/${RIG}.jsonl"
   if [ -f "$LEARN_FILE" ]; then
-    RECENT_LEARNINGS=$(tail -12 "$LEARN_FILE" | jq -r '.learning // empty' 2>/dev/null \
-      | tr -d '"' | tail -6 | sed 's/^/(( /;s/$/ ))/' | paste -sd' ' -)
+    # jq -R + fromjson? tolerates a truncated/corrupt line mid-window (plain
+    # jq aborts the whole stream and silently drops later valid entries)
+    RECENT_LEARNINGS=$(tail -12 "$LEARN_FILE" | jq -Rr 'fromjson? | .learning // empty' 2>/dev/null \
+      | tr -d '"' | cut -c1-300 | tail -6 | sed 's/^/(( /;s/$/ ))/' | paste -sd' ' -)
     if [ -n "$RECENT_LEARNINGS" ]; then
       LEARNINGS_MSG=" REGRESSION MEMORY — include verbatim in every reviewer prompt: known failure classes in this repo, check the diff against each before generic review: ${RECENT_LEARNINGS}"
     fi

@@ -75,7 +75,7 @@ user APPROVED — the implementation is contractually bound to it:
    mockup file is missing at the given path, emit a WARNING (`DSN-MOCKUP`:
    contract reference lost) and continue with the standard review.
 
-## 8 Core Checklist Areas
+## Core Checklist Areas (1–8, plus 8b Icon System)
 
 These apply to ALL project types. See "App-Type-Specific Checks" below for additional checks.
 
@@ -247,8 +247,8 @@ VERDICT: DESIGN_APPROVED | FIX_WARNINGS | FIX_CRITICAL | NOT_APPLICABLE
 - Only audit project code -- never flag framework/library internals (node_modules, vendor, .next, dist, frappe/public/js/lib)
 - Inline styles with variable/dynamic values are acceptable -- only flag hardcoded inline styles
 - If no design token file is found, note absence as SUGGESTION and use CSS custom properties as fallback reference
-- Always run the 8 core checklist areas PLUS the 2 app-type-specific areas matching the project type
-- For generic/unknown project types, run only the 8 core checklist areas
+- Always run the core checklist areas (1–8 incl. 8b Icon System) PLUS the 2 app-type-specific areas matching the project type
+- For generic/unknown project types, run only the core checklist areas (1–8 incl. 8b)
 - Keep turns low -- scan broadly, judge decisively
 
 ## Learnings

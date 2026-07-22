@@ -61,9 +61,14 @@ if ! grep -qiE '^[[:space:]]*(#+[[:space:]]*)?FLOW' "$PLAN"; then
   echo "  or 'FLOW: NOT NEEDED (<reason>)' for single-file/no-dependency work." >&2
   exit 1
 fi
-if ! grep -iE '^[[:space:]]*(#+[[:space:]]*)?FLOW' "$PLAN" | grep -qiE 'NOT NEEDED|N/A'; then
-  if ! grep -qE '```mermaid|-->|→' "$PLAN"; then
-    echo "plan-approve: REFUSED — FLOW section has neither a mermaid block nor edges (-->)." >&2
+# Scope the content check to the FLOW section itself (heading → next
+# UPPERCASE-heading), so an arrow elsewhere in the plan can't satisfy it
+# vacuously; accept ->, --> and → edges plus the NOT NEEDED escape on any
+# line of the section.
+FLOW_SECTION=$(sed -n '/^[[:space:]]*\(#\+[[:space:]]*\)\?FLOW/I,/^[[:space:]]*\(#\+[[:space:]]*\)\?[A-Z][A-Z_ ]*:/p' "$PLAN")
+if ! echo "$FLOW_SECTION" | grep -qiE 'NOT NEEDED|N/A'; then
+  if ! echo "$FLOW_SECTION" | grep -qE '```mermaid|->|→'; then
+    echo "plan-approve: REFUSED — FLOW section has neither a mermaid block nor edges (-> / -->)." >&2
     exit 1
   fi
 fi
